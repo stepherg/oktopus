@@ -17,6 +17,7 @@ const (
 	STOMP
 	WEBSOCKETS
 	CWMP
+	WEBPA
 )
 
 type Status uint8
@@ -40,6 +41,7 @@ type Device struct {
 	Stomp        Status
 	Websockets   Status
 	Cwmp         Status
+	Webpa        Status
 }
 
 type DevicesList struct {
@@ -248,6 +250,8 @@ func (m MTP) String() string {
 		return "websockets"
 	case CWMP:
 		return "cwmp"
+	case WEBPA:
+		return "webpa"
 	}
 	return "unknown"
 }

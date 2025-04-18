@@ -90,6 +90,20 @@ services:
       usp_network:
         ipv4_address: 172.16.235.8
     profiles: [stomp]
+
+  webpa:
+    image: "oktopusp/webpa"
+    container_name: webpa
+    hostname: webpa
+    env_file:
+      - .env.webpa
+    volumes:
+      - ./nats_config:/tmp/nats/config
+    networks:
+      usp_network:
+        ipv4_address: 172.16.235.27
+    profiles: [webpa]
+
   #/* -------------------------------------------------------------------------- */
 
   #/* --------------- Message transfer Protocols Adapters to NATS -------------- */
@@ -134,6 +148,21 @@ services:
       usp_network:
         ipv4_address: 172.16.235.11
     profiles: [stomp]
+
+  webpa-adapter:
+    image: "oktopusp/webpa-adapter"
+    container_name: webpa-adapter
+    hostname: webpa-adapter
+    depends_on:
+      - webpa
+    env_file:
+      - .env.webpa-adapter
+    volumes:
+      - ./nats_config:/tmp/nats/config
+    networks:
+      usp_network:
+        ipv4_address: 172.16.235.28
+    profiles: [webpa]
 
   adapter:
     image: "oktopusp/adapter"

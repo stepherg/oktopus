@@ -69,6 +69,8 @@ const showIcon = (mtpType) => {
       return <Image src="/assets/mtp/boot-stomp.svg" alt="STOMP" width={24} height={24} />;
     case "websocket":
       return <Image src="/assets/mtp/websocket.svg" alt="WebSocket" width={24} height={24} />;
+    case "webpa":
+      return <SvgIcon><Signal /></SvgIcon>
     default:
       return <ExclamationTriangle />;
   }

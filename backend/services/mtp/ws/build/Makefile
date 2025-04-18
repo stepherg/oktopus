@@ -30,6 +30,7 @@ help:
 
 build:
 	@docker build -t ${DOCKER_USER}/${DOCKER_APP}:${DOCKER_TAG} -f Dockerfile ../
+	@docker tag ${DOCKER_USER}/${DOCKER_APP}:${DOCKER_TAG} ${DOCKER_USER}/${DOCKER_APP}:latest
 
 run:
 	@docker run -d --name ${DOCKER_USER}-${DOCKER_APP} -p 8080:8080 ${DOCKER_USER}/${DOCKER_APP}:${DOCKER_TAG}

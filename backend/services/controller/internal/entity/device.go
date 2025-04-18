@@ -13,6 +13,7 @@ type Device struct {
 	Stomp        Status
 	Websockets   Status
 	Cwmp         Status
+	Webpa        Status
 }
 
 type VendorsCount struct {

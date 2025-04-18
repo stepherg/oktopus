@@ -34,6 +34,8 @@ build-backend:
 	@make build -C ../backend/services/mtp/mqtt/build/ DOCKER_USER=${DOCKER_USER}
 	@make build -C ../backend/services/mtp/stomp-adapter/build/ DOCKER_USER=${DOCKER_USER}
 	@make build -C ../backend/services/mtp/stomp/build/ DOCKER_USER=${DOCKER_USER}
+	@make build -C ../backend/services/mtp/webpa-adapter/build/ DOCKER_USER=${DOCKER_USER}
+	@make build -C ../backend/services/mtp/webpa/build/ DOCKER_USER=${DOCKER_USER}
 
 build-frontend:
 	@make build -C ../frontend/build/ DOCKER_USER=${DOCKER_USER}
@@ -52,6 +54,8 @@ release-backend:
 	@make release -C ../backend/services/mtp/mqtt/build/ DOCKER_USER=${DOCKER_USER}
 	@make release -C ../backend/services/mtp/stomp-adapter/build/ DOCKER_USER=${DOCKER_USER}
 	@make release -C ../backend/services/mtp/stomp/build/ DOCKER_USER=${DOCKER_USER}
+	@make release -C ../backend/services/mtp/webpa-adapter/build/ DOCKER_USER=${DOCKER_USER}
+	@make release -C ../backend/services/mtp/webpa/build/ DOCKER_USER=${DOCKER_USER}
 
 release-frontend:
 	@make release -C ../frontend/build/ DOCKER_USER=${DOCKER_USER}

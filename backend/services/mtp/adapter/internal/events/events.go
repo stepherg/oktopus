@@ -21,6 +21,7 @@ func StartEventsListener(ctx context.Context, js jetstream.JetStream, uspHandler
 		nats.STOMP_STREAM_NAME,
 		nats.LORA_STREAM_NAME,
 		nats.OPC_STREAM_NAME,
+		nats.WEBPA_STREAM_NAME,
 	}
 
 	for _, uspEvent := range uspEvents {

@@ -22,6 +22,7 @@ help:
 
 build:
 	@docker build -t ${DOCKER_USER}/${DOCKER_APP}:${DOCKER_TAG} -f Dockerfile ../
+	@docker tag ${DOCKER_USER}/${DOCKER_APP}:${DOCKER_TAG} ${DOCKER_USER}/${DOCKER_APP}:latest
 
 release: build
 	@docker push ${DOCKER_USER}/${DOCKER_APP}:${DOCKER_TAG}

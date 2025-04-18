@@ -29,6 +29,10 @@ func deviceStateOK(w http.ResponseWriter, nc *nats.Conn, sn string) (string, boo
 		return entity.Mqtt, true
 	}
 
+	if device.Webpa == entity.Online {
+		return entity.Webpa, true
+	}
+
 	if device.Websockets == entity.Online {
 		return entity.Websockets, true
 	}
@@ -54,13 +58,15 @@ func getMtpFromRequest(r *http.Request, w http.ResponseWriter) (string, error) {
 		return entity.Websockets, nil
 	case entity.Stomp:
 		return entity.Stomp, nil
+	case entity.Webpa:
+		return entity.Webpa, nil
 	case "any":
 		return "", nil
 	case ":mtp":
 		return "", nil
 	default:
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(utils.Marshall("Invalid MTP, valid options are: " + entity.Mqtt + ", " + entity.Websockets + ", " + entity.Stomp))
+		w.Write(utils.Marshall("Invalid MTP, valid options are: " + entity.Mqtt + ", " + entity.Websockets + ", " + entity.Stomp + ", " + entity.Webpa))
 		return "", errInvalidMtp
 	}
 }

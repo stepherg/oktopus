@@ -37,6 +37,8 @@ func (d *Database) UpdateStatus(sn string, status Status, mtp MTP) error {
 		result.Websockets = status
 	case CWMP:
 		result.Cwmp = status
+	case WEBPA:
+		result.Webpa = status
 	}
 
 	/*

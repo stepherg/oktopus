@@ -18,6 +18,7 @@ const (
 	LORA_STREAM_NAME   = "lora"
 	OPC_STREAM_NAME    = "opc"
 	CWMP_STREAM_NAME   = "cwmp"
+	WEBPA_STREAM_NAME  = "webpa"
 	USP_SUBJECT        = ".usp.v1."
 	BUCKET_NAME        = "devices-auth"
 	BUCKET_DESCRIPTION = "Devices authentication"
@@ -121,6 +122,7 @@ func defineStreams() []string {
 		LORA_STREAM_NAME,
 		OPC_STREAM_NAME,
 		CWMP_STREAM_NAME,
+		WEBPA_STREAM_NAME,
 	}
 }
 
@@ -132,6 +134,7 @@ func defineConsumers() []string {
 		LORA_STREAM_NAME,
 		OPC_STREAM_NAME,
 		CWMP_STREAM_NAME,
+		WEBPA_STREAM_NAME,
 	}
 }
 

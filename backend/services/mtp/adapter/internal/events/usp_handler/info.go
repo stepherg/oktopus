@@ -33,6 +33,8 @@ func getMtp(mtp string) db.MTP {
 		return db.WEBSOCKETS
 	case nats.STOMP_STREAM_NAME:
 		return db.STOMP
+	case nats.WEBPA_STREAM_NAME:
+		return db.WEBPA
 	default:
 		return db.UNDEFINED
 	}
@@ -66,6 +68,8 @@ func parseDeviceInfoMsg(sn, subject string, data []byte, mtp db.MTP) db.Device {
 		device.Websockets = db.Online
 	case db.STOMP:
 		device.Stomp = db.Online
+	case db.WEBPA:
+		device.Webpa = db.Online
 	}
 
 	device.Status = db.Online

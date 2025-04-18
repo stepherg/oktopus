@@ -18,6 +18,7 @@ const (
 	NATS_WS_SUBJECT_PREFIX            = "ws.usp.v1."
 	NATS_WS_ADAPTER_SUBJECT_PREFIX    = "ws-adapter.usp.v1."
 	NATS_STOMP_ADAPTER_SUBJECT_PREFIX = "stomp-adapter.usp.v1."
+	NATS_WEBPA_ADAPTER_SUBJECT_PREFIX = "webpa-adapter.usp.v1."
 	DEVICE_SUBJECT_PREFIX             = "device.usp.v1."
 	DEVICE_CWMP_SUBJECT_PREFIX        = "device.cwmp.v1."
 	BUCKET_NAME                       = "devices-auth"

@@ -327,7 +327,7 @@ func (a *Api) deviceWifi(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if device.Mqtt == entity.Online || device.Stomp == entity.Online || device.Websockets == entity.Online {
+		if device.Mqtt == entity.Online || device.Stomp == entity.Online || device.Websockets == entity.Online || device.Webpa == entity.Online {
 			w.WriteHeader(http.StatusNotImplemented)
 			w.Write(utils.Marshall("This feature is only working with CWMP devices"))
 			return
@@ -388,7 +388,7 @@ func (a *Api) deviceWifi(w http.ResponseWriter, r *http.Request) {
 
 		}
 
-		if device.Mqtt == entity.Online || device.Stomp == entity.Online || device.Websockets == entity.Online {
+		if device.Mqtt == entity.Online || device.Stomp == entity.Online || device.Websockets == entity.Online || device.Webpa == entity.Online {
 			w.WriteHeader(http.StatusNotImplemented)
 			w.Write(utils.Marshall("This feature is only working with CWMP devices"))
 			return

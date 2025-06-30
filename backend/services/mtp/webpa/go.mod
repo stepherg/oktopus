@@ -5,10 +5,13 @@ go 1.23.0
 toolchain go1.24.1
 
 require (
-	github.com/gorilla/mux v1.8.1
+	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/gorilla/websocket v1.5.1
 	github.com/joho/godotenv v1.5.1
 	github.com/nats-io/nats.go v1.35.0
+	github.com/pkg/errors v0.9.1
+	github.com/xmidt-org/argus v0.9.10
+	github.com/xmidt-org/wrp-go/v3 v3.1.6
 	google.golang.org/protobuf v1.34.2
 )
 
@@ -16,7 +19,6 @@ require (
 	emperror.dev/emperror v0.33.0 // indirect
 	emperror.dev/errors v0.8.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
@@ -30,6 +32,7 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/glog v1.1.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.15.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jtacoma/uritemplates v1.0.0 // indirect
@@ -45,7 +48,6 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.8 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.17.0 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
@@ -61,7 +63,6 @@ require (
 	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/subosito/gotenv v1.4.2 // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect
-	github.com/xmidt-org/argus v0.9.10 // indirect
 	github.com/xmidt-org/arrange v0.4.0 // indirect
 	github.com/xmidt-org/bascule v0.11.6 // indirect
 	github.com/xmidt-org/candlelight v0.0.18 // indirect
@@ -70,7 +71,6 @@ require (
 	github.com/xmidt-org/httpaux v0.4.0 // indirect
 	github.com/xmidt-org/sallust v0.2.2 // indirect
 	github.com/xmidt-org/touchstone v0.1.3 // indirect
-	github.com/xmidt-org/wrp-go/v3 v3.1.6 // indirect
 	go.opentelemetry.io/otel v1.16.0 // indirect
 	go.opentelemetry.io/otel/exporters/jaeger v1.16.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.16.0 // indirect

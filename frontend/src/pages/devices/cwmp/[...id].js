@@ -75,7 +75,7 @@ const Page = () => {
                     justifyContent:'center',
                 }}>                                        
                     <Tabs value={router.query.id[1]}  aria-label="icon label tabs example" variant='scrollable'>
-                        <Tooltip placement="bottom">
+                        {/*<Tooltip placement="bottom">
                         <Tab 
                         icon={<SvgIcon><WifiIcon/></SvgIcon>} 
                         iconPosition={"end"} 
@@ -138,7 +138,7 @@ const Page = () => {
                         iconPosition={"end"} 
                         label="Location" 
                         style={{opacity:"0.5", cursor:"default"}} 
-                        value={"location"} /></Tooltip>
+                        value={"location"} /></Tooltip> */}
                         <Tab 
                         value={"msg"} 
                         onClick={()=>{router.push(`/devices/cwmp/${deviceID}/msg`)}} 

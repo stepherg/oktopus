@@ -10,12 +10,16 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "overrides": {
+    "qs": "^6.14.2",
+    "body-parser": "^1.20.4"
+  },
   "dependencies": {
     "@koa/cors": "^5.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "koa": "^3.0.1",
+    "express": "^4.22.1",
+    "koa": "^3.0.3",
     "socket.io": "^4.6.2"
   }
 }

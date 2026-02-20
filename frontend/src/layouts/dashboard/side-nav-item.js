@@ -60,6 +60,8 @@ export const SideNavItem = (props) => {
           ...(active && {
             backgroundColor: 'rgba(255, 255, 255, 0.04)'
           }),
+          width: "100%",
+          minHeight: "48px",
           '&:hover': {
             backgroundColor: 'rgba(255, 255, 255, 0.04)'
           }

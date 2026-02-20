@@ -28,7 +28,7 @@ import { AccountPopover } from './account-popover';
 import { useAuth } from 'src/hooks/use-auth';
 import { WsContext } from 'src/contexts/socketio-context';
 import { useContext, useEffect } from 'react';
-import CurrencyDollarIcon from '@heroicons/react/24/outline/CurrencyDollarIcon';
+import TrophyIcon from '@heroicons/react/24/outline/TrophyIcon';
 
 const SIDE_NAV_WIDTH = 280;
 const TOP_NAV_HEIGHT = 64;
@@ -104,7 +104,7 @@ export const TopNav = (props) => {
               <Tooltip title="Upgrade to Pro">
                 <IconButton>
                   <SvgIcon fontSize="small">
-                    <CurrencyDollarIcon/>
+                    <TrophyIcon/>
                   </SvgIcon>
                 </IconButton>
               </Tooltip>

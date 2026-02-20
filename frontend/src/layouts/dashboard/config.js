@@ -14,6 +14,8 @@ import UserIcon from '@heroicons/react/24/solid/UserIcon';
 import BuildingOffice2Icon from '@heroicons/react/24/solid/BuildingOffice2Icon';
 import BookOpenIcon from '@heroicons/react/24/solid/BookOpenIcon';
 import CommandLineIcon from '@heroicons/react/24/solid/CommandLineIcon';
+import DocumentMagnifyingGlassIcon from '@heroicons/react/24/solid/DocumentMagnifyingGlassIcon';
+import MapIcon from '@heroicons/react/24/solid/MapIcon';
 
 export const items = [
   {
@@ -35,44 +37,6 @@ export const items = [
     )
   },
   {
-    title: 'Mass Actions',
-    icon: (
-      <SvgIcon fontSize="small">
-        <RectangleGroupIcon color='gray'/>
-      </SvgIcon>
-    ),
-    disabled: true,
-    children: [
-      {
-        title: 'Firmware Update',
-        icon: (
-          <SvgIcon fontSize="small">
-            <ArrowDownOnSquareStackIcon color='gray'/>
-          </SvgIcon>
-        ),
-        disabled: true
-      },
-      {
-        title: 'Message',
-        disabled: true,
-        icon: (
-          <SvgIcon fontSize="small">
-           <EnvelopeIcon color='gray'/>
-          </SvgIcon>
-        )
-      },
-    ]
-  },
-  {
-    title: 'Scripts',
-    disabled: true,
-    icon: (
-      <SvgIcon fontSize="small">
-        <CommandLineIcon color='gray'/>
-      </SvgIcon>
-    )
-  },
-  {
     title: 'Credentials',
     path: '/credentials',
     icon: (
@@ -82,49 +46,11 @@ export const items = [
     )
   },
   {
-    title: 'Access Control',
-    disabled: true,
+    title: 'Users',
+    path: '/access-control/users',
     icon: (
       <SvgIcon fontSize="small">
-        <UserGroupIcon color='gray'/>
-      </SvgIcon>
-    ),
-    children: [
-      {
-        title: 'Tenants',
-        disabled: true,
-        icon: (
-          <SvgIcon fontSize="small">
-            <BuildingOffice2Icon color='gray'/>
-          </SvgIcon>
-        )
-      },
-      {
-        title: 'Roles',
-        disabled: true,
-        icon: (
-          <SvgIcon fontSize="small">
-            <ShieldCheckIcon color='gray'/>
-          </SvgIcon>
-        )
-      },
-      {
-        title: 'Users',
-        path: '/access-control/users',
-        icon: (
-          <SvgIcon fontSize="small">
-           <UserIcon/>
-          </SvgIcon>
-        )
-      },
-     ]
-   },
-  {
-    title: 'File  Server',
-    disabled: true,
-    icon: (
-      <SvgIcon fontSize="small">
-        <FolderIcon color='gray'/>
+        <UserIcon/>
       </SvgIcon>
     )
   },
@@ -146,7 +72,101 @@ export const items = [
       </SvgIcon>
     ),
     external: true,
-  },
+  }
+//   {
+//     title: 'Mass Actions',
+//     icon: (
+//       <SvgIcon fontSize="small">
+//         <RectangleGroupIcon color='gray'/>
+//       </SvgIcon>
+//     ),
+//     disabled: true,
+//     children: [
+//       {
+//         title: 'Firmware Update',
+//         icon: (
+//           <SvgIcon fontSize="small">
+//             <ArrowDownOnSquareStackIcon color='gray'/>
+//           </SvgIcon>
+//         ),
+//         disabled: true
+//       },
+//       {
+//         title: 'Message',
+//         disabled: true,
+//         icon: (
+//           <SvgIcon fontSize="small">
+//            <EnvelopeIcon color='gray'/>
+//           </SvgIcon>
+//         )
+//       },
+//     ]
+//   },
+//   {
+//     title: 'Scripts',
+//     disabled: true,
+//     icon: (
+//       <SvgIcon fontSize="small">
+//         <CommandLineIcon color='gray'/>
+//       </SvgIcon>
+//     )
+//   },
+//   {
+//   title: "Map",
+//   icon: (
+//     <SvgIcon fontSize="small">
+//       <MapIcon color={"gray"} />
+//     </SvgIcon>
+//   ),
+//   disabled: true,
+// },
+//   {
+//     title: 'Access Control',
+//     disabled: true,
+//     icon: (
+//       <SvgIcon fontSize="small">
+//         <UserGroupIcon color='gray'/>
+//       </SvgIcon>
+//     ),
+//     children: [
+//       {
+//         title: 'Tenants',
+//         disabled: true,
+//         icon: (
+//           <SvgIcon fontSize="small">
+//             <BuildingOffice2Icon color='gray'/>
+//           </SvgIcon>
+//         )
+//       },
+//       {
+//         title: 'Roles',
+//         disabled: true,
+//         icon: (
+//           <SvgIcon fontSize="small">
+//             <ShieldCheckIcon color='gray'/>
+//           </SvgIcon>
+//         )
+//       },
+//      ]
+//    },
+//   {
+//     title: 'File  Server',
+//     disabled: true,
+//     icon: (
+//       <SvgIcon fontSize="small">
+//         <FolderIcon color='gray'/>
+//       </SvgIcon>
+//     )
+//   },
+//   {
+//     title: "Audit Trail",
+//     disabled: true,
+//     icon: (
+//       <SvgIcon fontSize="small">
+//         <DocumentMagnifyingGlassIcon color='gray'/>
+//       </SvgIcon>
+//     ),
+//   }
 ];
 
 /*

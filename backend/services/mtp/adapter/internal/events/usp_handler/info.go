@@ -46,21 +46,51 @@ func parseDeviceInfoMsg(sn, subject string, data []byte, mtp db.MTP) db.Device {
 
 	err := proto.Unmarshal(data, &record)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Error unmarshaling USP Record:", err)
+		return db.Device{}
 	}
+
 	err = proto.Unmarshal(record.GetNoSessionContext().Payload, &message)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Error unmarshaling USP Message:", err)
+		return db.Device{}
 	}
 
 	var device db.Device
-	msg := message.Body.MsgBody.(*usp_msg.Body_Response).Response.GetGetResp()
 
-	device.Vendor = msg.ReqPathResults[0].ResolvedPathResults[0].ResultParams["Manufacturer"]
-	device.Model = msg.ReqPathResults[1].ResolvedPathResults[0].ResultParams["ModelName"]
-	device.Version = msg.ReqPathResults[2].ResolvedPathResults[0].ResultParams["SoftwareVersion"]
-	device.ProductClass = msg.ReqPathResults[4].ResolvedPathResults[0].ResultParams["ProductClass"]
+	respBody, isResponse := message.Body.MsgBody.(*usp_msg.Body_Response)
+
+	if !isResponse {
+		log.Printf("Ignored message for DeviceInfo: Expected Body_Response but got %T", message.Body.MsgBody)
+		return device
+	}
+
+	msg := respBody.Response.GetGetResp()
+	if msg == nil {
+		log.Println("Ignored message: Response does not contain GetResp")
+		return device
+	}
+
+	if len(msg.ReqPathResults) < 5 {
+		log.Printf("Error: Expected 5 params in GetResp, got %d", len(msg.ReqPathResults))
+		return device
+	}
+
+	if len(msg.ReqPathResults[0].ResolvedPathResults) > 0 {
+		device.Vendor = msg.ReqPathResults[0].ResolvedPathResults[0].ResultParams["Manufacturer"]
+	}
+	if len(msg.ReqPathResults[1].ResolvedPathResults) > 0 {
+		device.Model = msg.ReqPathResults[1].ResolvedPathResults[0].ResultParams["ModelName"]
+	}
+	if len(msg.ReqPathResults[2].ResolvedPathResults) > 0 {
+		device.Version = msg.ReqPathResults[2].ResolvedPathResults[0].ResultParams["SoftwareVersion"]
+	}
+	if len(msg.ReqPathResults[4].ResolvedPathResults) > 0 {
+		device.ProductClass = msg.ReqPathResults[4].ResolvedPathResults[0].ResultParams["ProductClass"]
+	}
+
 	device.SN = sn
+
 	switch db.MTP(mtp) {
 	case db.MQTT:
 		device.Mqtt = db.Online

@@ -183,6 +183,21 @@ services:
     profiles: [frontend]
   #/* -------------------------------------------------------------------------- */
 
+  #/* --------------------- USP Conformance Test Service ---------------------- */
+  taas:
+    image: "oktopusp/taas"
+    container_name: taas
+    ports:
+      - 8001:8001
+    depends_on:
+      - mongo_usp
+    env_file:
+      - .env.taas
+    networks:
+      usp_network:
+    profiles: [controller]
+  #/* -------------------------------------------------------------------------- */
+
   #/* -------------------------------- Frontend -------------------------------- */
   frontend:
     image: "oktopusp/frontend"

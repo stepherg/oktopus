@@ -16,6 +16,7 @@ import BookOpenIcon from '@heroicons/react/24/solid/BookOpenIcon';
 import CommandLineIcon from '@heroicons/react/24/solid/CommandLineIcon';
 import DocumentMagnifyingGlassIcon from '@heroicons/react/24/solid/DocumentMagnifyingGlassIcon';
 import MapIcon from '@heroicons/react/24/solid/MapIcon';
+import BeakerIcon from '@heroicons/react/24/solid/BeakerIcon';
 
 export const items = [
   {
@@ -60,6 +61,15 @@ export const items = [
     icon: (
       <SvgIcon fontSize="small">
         <CogIcon />
+      </SvgIcon>
+    )
+  },
+  {
+    title: 'USP Tests',
+    path: '/tests',
+    icon: (
+      <SvgIcon fontSize="small">
+        <BeakerIcon />
       </SvgIcon>
     )
   },

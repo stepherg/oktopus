@@ -44,13 +44,14 @@ func NatsUspInteraction(
 
 	ch := make(chan *nats.Msg, 64)
 	done := make(chan error)
-	_, err := nc.ChanSubscribe(subSubj, ch)
+	sub, err := nc.ChanSubscribe(subSubj, ch)
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write(utils.Marshall("Error to communicate with nats: " + err.Error()))
 		return []byte{}, err
 	}
+	defer sub.Unsubscribe() //nolint:errcheck
 
 	go func() {
 		select {
@@ -90,13 +91,14 @@ func NatsCustomReq[T entity.DataType](
 
 	ch := make(chan *nats.Msg, 64)
 	done := make(chan string)
-	_, err := nc.ChanSubscribe(subSubj, ch)
+	sub, err := nc.ChanSubscribe(subSubj, ch)
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write(utils.Marshall("Error to communicate with nats: " + err.Error()))
 		return nil, err
 	}
+	defer sub.Unsubscribe() //nolint:errcheck
 
 	select {
 	case msg := <-ch:

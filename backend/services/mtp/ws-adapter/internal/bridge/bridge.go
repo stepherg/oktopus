@@ -46,7 +46,7 @@ type deviceStatus struct {
 
 type (
 	Publisher  func(string, []byte) error
-	Subscriber func(string, func(*nats.Msg)) error
+	Subscriber func(string, func(*nats.Msg)) (*nats.Subscription, error)
 )
 
 type Bridge struct {
@@ -57,6 +57,8 @@ type Bridge struct {
 	NewDevQMutex   *sync.Mutex
 	kv             jetstream.KeyValue
 	Ctx            context.Context
+	subs           []*nats.Subscription
+	subsMu         sync.Mutex
 }
 
 func NewBridge(p Publisher, s Subscriber, ctx context.Context, w config.Ws, kv jetstream.KeyValue) *Bridge {
@@ -83,17 +85,15 @@ func (b *Bridge) StartBridge(port string, tls bool) {
 			}
 			log.Println("Connected to WS endpoint--> ", url)
 			go b.subscribe(wc)
+			done := make(chan struct{})
 			go func(wc *websocket.Conn) {
+				defer close(done)
 				for {
 					msgType, wsMsg, err := wc.ReadMessage()
 					if err != nil {
-						if websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-							log.Printf("websocket error: %v", err)
-							b.StartBridge(port, tls)
-							return
-						}
-						log.Println("websocket unexpected error:", err)
-						return
+						log.Printf("websocket read error (will reconnect): %v", err)
+						wc.Close()
+						break
 					}
 					if msgType == websocket.TextMessage {
 						b.statusMsgHandler(wsMsg)
@@ -128,17 +128,38 @@ func (b *Bridge) StartBridge(port string, tls bool) {
 
 				}
 			}(wc)
-			break
+			// Block until the read goroutine exits, then retry after a short delay.
+			<-done
+			time.Sleep(WS_CONNECTION_RETRY)
 		}
 	}(port, tls)
 }
 
 func (b *Bridge) subscribe(wc *websocket.Conn) {
 
+	// Drain any subscriptions from a previous connection.
+	b.subsMu.Lock()
+	for _, s := range b.subs {
+		s.Drain() //nolint:errcheck
+	}
+	b.subs = nil
+	b.subsMu.Unlock()
+
+	addSub := func(subject string, handler func(*nats.Msg)) {
+		sub, err := b.Sub(subject, handler)
+		if err != nil {
+			log.Printf("subscribe error on %s: %v", subject, err)
+			return
+		}
+		b.subsMu.Lock()
+		b.subs = append(b.subs, sub)
+		b.subsMu.Unlock()
+	}
+
 	b.NewDeviceQueue = make(map[string]string)
 	b.NewDevQMutex = &sync.Mutex{}
 
-	b.Sub(NATS_WS_ADAPTER_SUBJECT_PREFIX+"*.info", func(msg *nats.Msg) {
+	addSub(NATS_WS_ADAPTER_SUBJECT_PREFIX+"*.info", func(msg *nats.Msg) {
 
 		log.Printf("Received message on info subject")
 
@@ -156,7 +177,7 @@ func (b *Bridge) subscribe(wc *websocket.Conn) {
 		}
 	})
 
-	b.Sub(NATS_WS_ADAPTER_SUBJECT_PREFIX+"*.api", func(msg *nats.Msg) {
+	addSub(NATS_WS_ADAPTER_SUBJECT_PREFIX+"*.api", func(msg *nats.Msg) {
 
 		log.Printf("Received message on api subject")
 
@@ -167,7 +188,7 @@ func (b *Bridge) subscribe(wc *websocket.Conn) {
 		}
 	})
 
-	b.Sub(NATS_WS_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
+	addSub(NATS_WS_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
 
 		log.Printf("Received message on rtt subject")
 

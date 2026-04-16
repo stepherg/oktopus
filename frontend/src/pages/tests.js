@@ -68,12 +68,18 @@ const Page = () => {
     fetchRuns();
   }, []);
 
+  // Keep polling while any run is still in progress.
+  useEffect(() => {
+    const hasRunning = runs.some((r) => r.status === 'running');
+    if (!hasRunning) return;
+    const id = setTimeout(fetchRuns, 5000);
+    return () => clearTimeout(id);
+  }, [runs]);
+
   const handleRunStarted = (runId) => {
-    // Poll for initial status and switch to results tab.
     setTab(2);
+    // Kick off the first refresh; subsequent ones are driven by the effect above.
     setTimeout(fetchRuns, 2000);
-    setTimeout(fetchRuns, 6000);
-    setTimeout(fetchRuns, 15000);
   };
 
   const handleDeleteRun = async (id) => {

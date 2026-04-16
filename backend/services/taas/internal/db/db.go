@@ -35,13 +35,6 @@ func NewDatabase(ctx context.Context, uri string) Database {
 
 	mdb := client.Database(databaseName)
 
-	// Ensure TTL index on test runs for automatic cleanup (optional – 90 days).
-	idxModel := mongo.IndexModel{
-		Keys:    bson.D{{Key: "start_time", Value: 1}},
-		Options: options.Index().SetExpireAfterSeconds(60 * 60 * 24 * 90),
-	}
-	mdb.Collection(runsCollection).Indexes().CreateOne(ctx, idxModel)
-
 	return Database{client: client, db: mdb, ctx: ctx}
 }
 

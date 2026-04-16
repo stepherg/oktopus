@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -75,12 +76,13 @@ func (a *Api) StartApi() {
 // listTests returns metadata for all registered test cases.
 func (a *Api) listTests(w http.ResponseWriter, r *http.Request) {
 	type testMeta struct {
-		ID      string   `json:"id"`
-		Section int      `json:"section"`
-		Name    string   `json:"name"`
-		Purpose string   `json:"purpose"`
-		MTPs    []string `json:"mtps"`
-		Tags    []string `json:"tags"`
+		ID       string   `json:"id"`
+		Section  int      `json:"section"`
+		Name     string   `json:"name"`
+		Purpose  string   `json:"purpose"`
+		Disabled bool     `json:"disabled"`
+		MTPs     []string `json:"mtps"`
+		Tags     []string `json:"tags"`
 	}
 
 	// Optional ?section= and ?mtp= query filters.
@@ -100,14 +102,21 @@ func (a *Api) listTests(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		out = append(out, testMeta{
-			ID:      tc.ID,
-			Section: tc.Section,
-			Name:    tc.Name,
-			Purpose: tc.Purpose,
-			MTPs:    tc.MTPs,
-			Tags:    tc.Tags,
+			ID:       tc.ID,
+			Section:  tc.Section,
+			Name:     tc.Name,
+			Purpose:  tc.Purpose,
+			Disabled: tc.Disabled,
+			MTPs:     tc.MTPs,
+			Tags:     tc.Tags,
 		})
 	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Section != out[j].Section {
+			return out[i].Section < out[j].Section
+		}
+		return testcases.TestIDKey(out[i].ID) < testcases.TestIDKey(out[j].ID)
+	})
 	writeJSON(w, http.StatusOK, out)
 }
 

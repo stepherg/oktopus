@@ -17,26 +17,28 @@ import (
 )
 
 type Api struct {
-	port   string
-	js     jetstream.JetStream
-	nc     *nats.Conn
-	bridge bridge.Bridge
-	db     db.Database
-	kv     jetstream.KeyValue
-	ctx    context.Context
+	port        string
+	js          jetstream.JetStream
+	nc          *nats.Conn
+	bridge      bridge.Bridge
+	db          db.Database
+	kv          jetstream.KeyValue
+	ctx         context.Context
+	notifyInbox *notifyInbox
 }
 
 const REQUEST_TIMEOUT = time.Second * 30
 
 func NewApi(c *config.Config, js jetstream.JetStream, nc *nats.Conn, bridge bridge.Bridge, d db.Database, kv jetstream.KeyValue) Api {
 	return Api{
-		port:   c.RestApi.Port,
-		js:     js,
-		nc:     nc,
-		ctx:    c.RestApi.Ctx,
-		bridge: bridge,
-		db:     d,
-		kv:     kv,
+		port:        c.RestApi.Port,
+		js:          js,
+		nc:          nc,
+		ctx:         c.RestApi.Ctx,
+		bridge:      bridge,
+		db:          d,
+		kv:          kv,
+		notifyInbox: newNotifyInbox(),
 	}
 }
 
@@ -76,6 +78,7 @@ func (a *Api) StartApi() {
 	iot.HandleFunc("/{sn}/{mtp}/instances", a.deviceGetParameterInstances).Methods("PUT")
 	iot.HandleFunc("/{sn}/{mtp}/operate", a.deviceOperateMsg).Methods("PUT")
 	iot.HandleFunc("/{sn}/{mtp}/fw_update", a.deviceFwUpdate).Methods("PUT") //TODO: put it to work and generalize for usp and cwmp
+	iot.HandleFunc("/{sn}/notify-events", a.deviceNotifyEvents).Methods("GET")
 	iot.HandleFunc("/{sn}/wifi", a.deviceWifi).Methods("PUT", "GET")
 	dash := r.PathPrefix("/api/info").Subrouter()
 	dash.HandleFunc("/vendors", a.vendorsInfo).Methods("GET")
@@ -114,5 +117,6 @@ func (a *Api) StartApi() {
 			log.Println(err)
 		}
 	}()
+	a.startNotifyListener()
 	log.Println("Running REST API at port", a.port)
 }

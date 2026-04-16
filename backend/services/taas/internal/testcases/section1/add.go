@@ -21,7 +21,7 @@ type paramSetting struct {
 }
 
 type createObject struct {
-	ObjPath      string         `json:"obj_path"`
+	ObjPath       string         `json:"obj_path"`
 	ParamSettings []paramSetting `json:"param_settings"`
 }
 
@@ -40,9 +40,17 @@ type addRespOperFailure struct {
 	ErrMsg  string `json:"err_msg"`
 }
 
+// addRespOperStatusInner holds the actual success/failure discriminator.
+// The controller serialises this with Go field names (OperSuccess / OperFailure).
+type addRespOperStatusInner struct {
+	OperSuccess *addRespOperSuccess `json:"OperSuccess"`
+	OperFailure *addRespOperFailure `json:"OperFailure"`
+}
+
+// addRespOperStatus wraps the inner struct under the "OperStatus" key,
+// matching the JSON produced by the controller: {"OperStatus": {"OperSuccess": {...}}}.
 type addRespOperStatus struct {
-	OperSuccess *addRespOperSuccess `json:"oper_success"`
-	OperFailure *addRespOperFailure `json:"oper_failure"`
+	OperStatus *addRespOperStatusInner `json:"OperStatus"`
 }
 
 type addRespCreatedObj struct {
@@ -122,19 +130,19 @@ func addCases() []testcases.TestCase {
 						testcases.Step("response body check", "fail", string(raw.RawBody)))
 				}
 				res := resp.CreatedObjResults[0]
-				if res.OperStatus.OperSuccess == nil {
+				if res.OperStatus.OperStatus.OperSuccess == nil {
 					return testcases.Fail("oper_success not present",
 						testcases.Step("oper_success check", "fail", string(raw.RawBody)))
 				}
-				if res.OperStatus.OperSuccess.InstantiatedPath == "" {
+				if res.OperStatus.OperStatus.OperSuccess.InstantiatedPath == "" {
 					return testcases.Fail("instantiated_path is empty",
 						testcases.Step("instantiated_path check", "fail", string(raw.RawBody)))
 				}
 				// Clean up the created instance.
-				deleteInstantiatedPath(ctx, c, target, res.OperStatus.OperSuccess.InstantiatedPath)
+				deleteInstantiatedPath(ctx, c, target, res.OperStatus.OperStatus.OperSuccess.InstantiatedPath)
 				return testcases.Pass(
 					testcases.Step("HTTP status check", "pass", "200 OK"),
-					testcases.Step("oper_success check", "pass", "instantiated_path: "+res.OperStatus.OperSuccess.InstantiatedPath),
+					testcases.Step("oper_success check", "pass", "instantiated_path: "+res.OperStatus.OperStatus.OperSuccess.InstantiatedPath),
 				)
 			},
 		},
@@ -167,10 +175,10 @@ func addCases() []testcases.TestCase {
 				if resp == nil || len(resp.CreatedObjResults) == 0 {
 					return testcases.Fail("no created_obj_results in response")
 				}
-				if resp.CreatedObjResults[0].OperStatus.OperSuccess == nil {
+				if resp.CreatedObjResults[0].OperStatus.OperStatus.OperSuccess == nil {
 					return testcases.Fail("oper_success not present")
 				}
-				path := resp.CreatedObjResults[0].OperStatus.OperSuccess.InstantiatedPath
+				path := resp.CreatedObjResults[0].OperStatus.OperStatus.OperSuccess.InstantiatedPath
 				deleteInstantiatedPath(ctx, c, target, path)
 				return testcases.Pass(
 					testcases.Step("oper_success check", "pass", "instantiated_path: "+path),
@@ -205,12 +213,12 @@ func addCases() []testcases.TestCase {
 					return testcases.Pass(testcases.Step("error returned on invalid required param", "pass", string(raw.RawBody)))
 				}
 				if resp != nil && len(resp.CreatedObjResults) > 0 {
-					if resp.CreatedObjResults[0].OperStatus.OperFailure != nil {
+					if resp.CreatedObjResults[0].OperStatus.OperStatus.OperFailure != nil {
 						return testcases.Pass(testcases.Step("oper_failure returned", "pass", string(raw.RawBody)))
 					}
-					if resp.CreatedObjResults[0].OperStatus.OperSuccess != nil {
+					if resp.CreatedObjResults[0].OperStatus.OperStatus.OperSuccess != nil {
 						// Clean up and fail.
-						deleteInstantiatedPath(ctx, c, target, resp.CreatedObjResults[0].OperStatus.OperSuccess.InstantiatedPath)
+						deleteInstantiatedPath(ctx, c, target, resp.CreatedObjResults[0].OperStatus.OperStatus.OperSuccess.InstantiatedPath)
 						return testcases.Fail("agent returned oper_success for invalid required parameter",
 							testcases.Step("oper_failure check", "fail", string(raw.RawBody)))
 					}
@@ -242,7 +250,7 @@ func addCases() []testcases.TestCase {
 				// Could also be oper_failure inside created_obj_results.
 				var ar addResp
 				if json.Unmarshal(raw.RawBody, &ar) == nil && len(ar.CreatedObjResults) > 0 {
-					if ar.CreatedObjResults[0].OperStatus.OperFailure != nil {
+					if ar.CreatedObjResults[0].OperStatus.OperStatus.OperFailure != nil {
 						return testcases.Pass(testcases.Step("oper_failure returned for invalid obj_path", "pass", string(raw.RawBody)))
 					}
 				}
@@ -277,10 +285,10 @@ func addCases() []testcases.TestCase {
 						testcases.Step("result count check", "fail", string(raw.RawBody)))
 				}
 				for _, r := range resp.CreatedObjResults {
-					if r.OperStatus.OperSuccess == nil {
+					if r.OperStatus.OperStatus.OperSuccess == nil {
 						return testcases.Fail("at least one object was not created successfully")
 					}
-					deleteInstantiatedPath(ctx, c, target, r.OperStatus.OperSuccess.InstantiatedPath)
+					deleteInstantiatedPath(ctx, c, target, r.OperStatus.OperStatus.OperSuccess.InstantiatedPath)
 				}
 				return testcases.Pass(testcases.Step("both objects created", "pass", ""))
 			},
@@ -310,8 +318,8 @@ func addCases() []testcases.TestCase {
 				}
 				if resp != nil {
 					for _, r := range resp.CreatedObjResults {
-						if r.OperStatus.OperSuccess != nil {
-							deleteInstantiatedPath(ctx, c, target, r.OperStatus.OperSuccess.InstantiatedPath)
+						if r.OperStatus.OperStatus.OperSuccess != nil {
+							deleteInstantiatedPath(ctx, c, target, r.OperStatus.OperStatus.OperSuccess.InstantiatedPath)
 							return testcases.Fail("agent created an object despite allow_partial=false and one invalid required param",
 								testcases.Step("oper_success check", "fail", string(raw.RawBody)))
 						}
@@ -345,13 +353,13 @@ func addCases() []testcases.TestCase {
 				}
 				if resp != nil && len(resp.CreatedObjResults) > 0 {
 					r := resp.CreatedObjResults[0]
-					if r.OperStatus.OperFailure != nil && r.OperStatus.OperFailure.ErrCode != 0 {
+					if r.OperStatus.OperStatus.OperFailure != nil && r.OperStatus.OperStatus.OperFailure.ErrCode != 0 {
 						return testcases.Pass(testcases.Step(
-							fmt.Sprintf("oper_failure with err_code %d", r.OperStatus.OperFailure.ErrCode),
+							fmt.Sprintf("oper_failure with err_code %d", r.OperStatus.OperStatus.OperFailure.ErrCode),
 							"pass", string(raw.RawBody)))
 					}
-					if r.OperStatus.OperSuccess != nil {
-						deleteInstantiatedPath(ctx, c, target, r.OperStatus.OperSuccess.InstantiatedPath)
+					if r.OperStatus.OperStatus.OperSuccess != nil {
+						deleteInstantiatedPath(ctx, c, target, r.OperStatus.OperStatus.OperSuccess.InstantiatedPath)
 						return testcases.Fail("agent returned oper_success for invalid required parameter with allow_partial=true")
 					}
 				}
@@ -360,6 +368,264 @@ func addCases() []testcases.TestCase {
 				}
 				return testcases.Fail("expected oper_failure but got unexpected response",
 					testcases.Step("oper_failure check", "fail", string(raw.RawBody)))
+			},
+		},
+		{
+			ID:      "1.9",
+			Section: 1,
+			Name:    "Add message with allow_partial true, required parameters fail, multiple objects",
+			Purpose: "Verify that with allow_partial true, the agent creates the valid object and returns oper_failure for the object with an invalid required parameter.",
+			Tags:    []string{"add", "allow_partial", "negative"},
+			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
+				cfg.Defaults()
+				req := addRequest{
+					AllowPartial: true,
+					CreateObjs: []createObject{
+						{
+							ObjPath: cfg.MultiInstanceObject,
+							ParamSettings: []paramSetting{{
+								Param: cfg.RequiredParam, Value: cfg.RequiredParamValue,
+							}},
+						},
+						{
+							ObjPath: cfg.MultiInstanceObject,
+							ParamSettings: []paramSetting{{
+								Param: "InvalidParameter_TP469_1_9", Value: "irrelevant", Required: true,
+							}},
+						},
+					},
+				}
+				resp, raw, err := sendAdd(ctx, c, target, req)
+				if err != nil {
+					return testcases.Error(fmt.Sprintf("transport error: %v", err))
+				}
+				if isErr, code, msg := client.IsUSPError(raw.RawBody); isErr {
+					return testcases.Fail(fmt.Sprintf("agent returned top-level USP error %d (%s); with allow_partial=true it must return AddResp", code, msg))
+				}
+				if resp == nil || len(resp.CreatedObjResults) < 2 {
+					return testcases.Fail("expected 2 created_obj_results (one success, one failure)",
+						testcases.Step("result count check", "fail", string(raw.RawBody)))
+				}
+				var successPath string
+				var gotSuccess, gotFailure bool
+				for _, r := range resp.CreatedObjResults {
+					if r.OperStatus.OperStatus.OperSuccess != nil {
+						gotSuccess = true
+						successPath = r.OperStatus.OperStatus.OperSuccess.InstantiatedPath
+					}
+					if r.OperStatus.OperStatus.OperFailure != nil {
+						gotFailure = true
+					}
+				}
+				if successPath != "" {
+					deleteInstantiatedPath(ctx, c, target, successPath)
+				}
+				if !gotSuccess || !gotFailure {
+					return testcases.Fail("expected one oper_success and one oper_failure",
+						testcases.Step("result type check", "fail", string(raw.RawBody)))
+				}
+				return testcases.Pass(
+					testcases.Step("oper_success for valid object", "pass", successPath),
+					testcases.Step("oper_failure for invalid object", "pass", ""),
+				)
+			},
+		},
+		{
+			ID:      "1.6",
+			Section: 1,
+			Name:    "Add message with allow_partial false, multiple objects with an invalid object",
+			Purpose: "Verify the agent rejects the entire Add request when allow_partial is false and one of the objects is invalid.",
+			Tags:    []string{"add", "negative"},
+			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
+				cfg.Defaults()
+				req := addRequest{
+					AllowPartial: false,
+					CreateObjs: []createObject{
+						{
+							ObjPath:       cfg.MultiInstanceObject,
+							ParamSettings: []paramSetting{{Param: cfg.RequiredParam, Value: cfg.RequiredParamValue, Required: true}},
+						},
+						{
+							ObjPath:       cfg.InvalidPath,
+							ParamSettings: []paramSetting{{Param: cfg.RequiredParam, Value: cfg.RequiredParamValue}},
+						},
+					},
+				}
+				resp, raw, err := sendAdd(ctx, c, target, req)
+				if err != nil {
+					return testcases.Error(fmt.Sprintf("transport error: %v", err))
+				}
+				if isErr, _, _ := client.IsUSPError(raw.RawBody); isErr {
+					return testcases.Pass(testcases.Step("USP error returned – request rejected", "pass", string(raw.RawBody)))
+				}
+				if resp != nil {
+					for _, r := range resp.CreatedObjResults {
+						if r.OperStatus.OperStatus.OperSuccess != nil {
+							deleteInstantiatedPath(ctx, c, target, r.OperStatus.OperStatus.OperSuccess.InstantiatedPath)
+							return testcases.Fail("agent created an object despite allow_partial=false and one invalid object",
+								testcases.Step("no oper_success expected", "fail", string(raw.RawBody)))
+						}
+					}
+				}
+				return testcases.Pass(testcases.Step("no objects created – request correctly rejected", "pass", string(raw.RawBody)))
+			},
+		},
+		{
+			ID:      "1.81",
+			Section: 1,
+			Name:    "Automatic unique key generation",
+			Purpose: "Verify the agent assigns unique keys (ID) automatically when they are not supplied in the Add message.",
+			Tags:    []string{"add"},
+			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
+				cfg.Defaults()
+				req := addRequest{
+					AllowPartial: false,
+					CreateObjs: []createObject{
+						{
+							ObjPath: cfg.MultiInstanceObject,
+							ParamSettings: []paramSetting{
+								{Param: "Enable", Value: "true"},
+								{Param: "NotifType", Value: "ValueChange"},
+								{Param: "ReferenceList", Value: "Device.LocalAgent.SoftwareVersion"},
+							},
+						},
+						{
+							ObjPath: cfg.MultiInstanceObject,
+							ParamSettings: []paramSetting{
+								{Param: "Enable", Value: "true"},
+								{Param: "NotifType", Value: "ValueChange"},
+								{Param: "ReferenceList", Value: "Device.LocalAgent.EndpointID"},
+							},
+						},
+					},
+				}
+				resp, raw, err := sendAdd(ctx, c, target, req)
+				if err != nil {
+					return testcases.Error(fmt.Sprintf("transport error: %v", err))
+				}
+				if isErr, code, msg := client.IsUSPError(raw.RawBody); isErr {
+					return testcases.Fail(fmt.Sprintf("USP error %d: %s", code, msg))
+				}
+				if resp == nil || len(resp.CreatedObjResults) < 2 {
+					return testcases.Fail("expected 2 created_obj_results",
+						testcases.Step("result count check", "fail", string(raw.RawBody)))
+				}
+				var ids []string
+				for _, r := range resp.CreatedObjResults {
+					if r.OperStatus.OperStatus.OperSuccess == nil {
+						return testcases.Fail("not all objects created successfully",
+							testcases.Step("oper_success check", "fail", string(raw.RawBody)))
+					}
+					deleteInstantiatedPath(ctx, c, target, r.OperStatus.OperStatus.OperSuccess.InstantiatedPath)
+					if id, ok := r.OperStatus.OperStatus.OperSuccess.UniqueKeys["ID"]; ok {
+						ids = append(ids, id)
+					}
+				}
+				if len(ids) == 2 && ids[0] == ids[1] {
+					return testcases.Fail("agent assigned the same ID to both objects; unique keys must differ",
+						testcases.Step("unique ID check", "fail", string(raw.RawBody)))
+				}
+				return testcases.Pass(testcases.Step("unique keys automatically assigned to both objects", "pass", string(raw.RawBody)))
+			},
+		},
+		{
+			ID:      "1.88",
+			Section: 1,
+			Name:    "Add message fails when unique key is invalid",
+			Purpose: "Verify the agent rejects an Add message when a unique key parameter is set to an already-used value.",
+			Tags:    []string{"add", "negative"},
+			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
+				cfg.Defaults()
+				const uniqueID = "sub-1-88-unique-key-test"
+				// Create first subscription with a specific ID.
+				resp, raw, err := sendAdd(ctx, c, target, addRequest{
+					AllowPartial: false,
+					CreateObjs: []createObject{{
+						ObjPath: cfg.MultiInstanceObject,
+						ParamSettings: []paramSetting{
+							{Param: "ID", Value: uniqueID},
+							{Param: cfg.RequiredParam, Value: cfg.RequiredParamValue},
+						},
+					}},
+				})
+				if err != nil {
+					return testcases.Error("setup Add failed: " + err.Error())
+				}
+				if resp == nil || len(resp.CreatedObjResults) == 0 || resp.CreatedObjResults[0].OperStatus.OperStatus.OperSuccess == nil {
+					return testcases.Error("setup Add did not succeed: " + string(raw.RawBody))
+				}
+				firstPath := resp.CreatedObjResults[0].OperStatus.OperStatus.OperSuccess.InstantiatedPath
+				defer deleteInstantiatedPath(ctx, c, target, firstPath)
+				// Try to create a second subscription with the same ID.
+				resp2, raw2, err := sendAdd(ctx, c, target, addRequest{
+					AllowPartial: false,
+					CreateObjs: []createObject{{
+						ObjPath: cfg.MultiInstanceObject,
+						ParamSettings: []paramSetting{
+							{Param: "ID", Value: uniqueID},
+							{Param: cfg.RequiredParam, Value: cfg.RequiredParamValue},
+						},
+					}},
+				})
+				if err != nil {
+					return testcases.Error("second Add transport error: " + err.Error())
+				}
+				if resp2 != nil && len(resp2.CreatedObjResults) > 0 && resp2.CreatedObjResults[0].OperStatus.OperStatus.OperSuccess != nil {
+					deleteInstantiatedPath(ctx, c, target, resp2.CreatedObjResults[0].OperStatus.OperStatus.OperSuccess.InstantiatedPath)
+					return testcases.Fail("agent created a duplicate object with the same unique key",
+						testcases.Step("unique key collision check", "fail", string(raw2.RawBody)))
+				}
+				if isErr, _, _ := client.IsUSPError(raw2.RawBody); isErr {
+					return testcases.Pass(testcases.Step("USP error returned for duplicate unique key", "pass", string(raw2.RawBody)))
+				}
+				if resp2 != nil && len(resp2.CreatedObjResults) > 0 && resp2.CreatedObjResults[0].OperStatus.OperStatus.OperFailure != nil {
+					return testcases.Pass(testcases.Step("oper_failure returned for duplicate unique key", "pass", string(raw2.RawBody)))
+				}
+				return testcases.Fail("agent did not reject the duplicate unique key",
+					testcases.Step("unique key rejection check", "fail", string(raw2.RawBody)))
+			},
+		},
+		{
+			ID:      "1.95",
+			Section: 1,
+			Name:    "Add message with search expression",
+			Purpose: "Verify the agent handles an Add message with a search expression in obj_path, creating objects in each matching instance.",
+			Tags:    []string{"add", "search_path"},
+			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
+				cfg.Defaults()
+				// Add a BootParameter to all enabled Controllers via search expression.
+				resp, raw, err := sendAdd(ctx, c, target, addRequest{
+					AllowPartial: false,
+					CreateObjs: []createObject{{
+						ObjPath: "Device.LocalAgent.Controller.[Enable==true].BootParameter.",
+						ParamSettings: []paramSetting{
+							{Param: "Enable", Value: "true"},
+							{Param: "ParameterName", Value: "Device.LocalAgent.SoftwareVersion"},
+						},
+					}},
+				})
+				if err != nil {
+					return testcases.Error(fmt.Sprintf("transport error: %v", err))
+				}
+				if isErr, code, msg := client.IsUSPError(raw.RawBody); isErr {
+					return testcases.Fail(fmt.Sprintf("USP error %d: %s", code, msg))
+				}
+				if resp == nil || len(resp.CreatedObjResults) == 0 {
+					return testcases.Fail("no created_obj_results in response",
+						testcases.Step("result check", "fail", string(raw.RawBody)))
+				}
+				gotSuccess := false
+				for _, r := range resp.CreatedObjResults {
+					if r.OperStatus.OperStatus.OperSuccess != nil {
+						gotSuccess = true
+						deleteInstantiatedPath(ctx, c, target, r.OperStatus.OperStatus.OperSuccess.InstantiatedPath)
+					}
+				}
+				if !gotSuccess {
+					return testcases.Fail("no oper_success in created_obj_results",
+						testcases.Step("oper_success check", "fail", string(raw.RawBody)))
+				}
+				return testcases.Pass(testcases.Step("objects created via search expression path", "pass", string(raw.RawBody)))
 			},
 		},
 	}

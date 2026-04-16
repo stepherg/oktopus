@@ -13,5 +13,6 @@ func All() []testcases.TestCase {
 	cases = append(cases, operateCases()...)
 	cases = append(cases, getInstancesCases()...)
 	cases = append(cases, getSupportedDMCases()...)
+	cases = append(cases, notifyCases()...)
 	return cases
 }

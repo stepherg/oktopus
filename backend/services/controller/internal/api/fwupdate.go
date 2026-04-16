@@ -112,7 +112,7 @@ func (a *Api) deviceFwUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	msg = usp_utils.NewOperateMsg(receiver)
-	err = sendUspMsg(msg, sn, w, a.nc, mtp)
+	err = sendUspMsg(msg, sn, w, a.nc, mtp, "", "")
 }
 
 // Check which fw image is activated

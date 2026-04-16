@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -85,9 +86,68 @@ func (c *ControllerClient) Generic(ctx context.Context, deviceID, mtp string, bo
 	return c.sendUSP(ctx, deviceID, mtp, "generic", body)
 }
 
+// SendWithUSPOverrides sends a USP message on the given operation path with
+// optional USP Record header overrides. A non-empty fromID overrides the
+// from_id field; a non-empty toID overrides the to_id field. The controller
+// applies its defaults for any field left empty.
+func (c *ControllerClient) SendWithUSPOverrides(ctx context.Context, deviceID, mtp, op string, body any, fromID, toID string) (*USPResponse, error) {
+	path := fmt.Sprintf("/api/device/%s/%s/%s", deviceID, mtp, op)
+	params := url.Values{}
+	if fromID != "" {
+		params.Set("usp_from_id", fromID)
+	}
+	if toID != "" {
+		params.Set("usp_to_id", toID)
+	}
+	if len(params) > 0 {
+		path += "?" + params.Encode()
+	}
+	return c.doRequest(ctx, http.MethodPut, path, body)
+}
+
 // GetDevices lists connected devices (GET /api/device).
 func (c *ControllerClient) GetDevices(ctx context.Context) (*USPResponse, error) {
 	return c.doRequest(ctx, http.MethodGet, "/api/device", nil)
+}
+
+// GetNotifyEvents drains the notify inbox for a device (GET /api/device/{sn}/notify-events).
+// Each element of the returned slice is the JSON of a USP Notify message.
+func (c *ControllerClient) GetNotifyEvents(ctx context.Context, deviceID string) ([]json.RawMessage, error) {
+	path := fmt.Sprintf("/api/device/%s/notify-events", deviceID)
+	resp, err := c.doRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var events []json.RawMessage
+	if err := json.Unmarshal(resp.RawBody, &events); err != nil {
+		return nil, fmt.Errorf("decode notify events: %w", err)
+	}
+	return events, nil
+}
+
+// WaitForNotify polls the notify inbox for deviceID until at least one event
+// arrives or the context deadline is exceeded.  It returns the first batch of
+// events received.  interval controls how often to poll (default 500 ms).
+func (c *ControllerClient) WaitForNotify(ctx context.Context, deviceID string, interval time.Duration) ([]json.RawMessage, error) {
+	if interval <= 0 {
+		interval = 500 * time.Millisecond
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+			events, err := c.GetNotifyEvents(ctx, deviceID)
+			if err != nil {
+				return nil, err
+			}
+			if len(events) > 0 {
+				return events, nil
+			}
+		}
+	}
 }
 
 func (c *ControllerClient) sendUSP(ctx context.Context, deviceID, mtp, op string, body any) (*USPResponse, error) {

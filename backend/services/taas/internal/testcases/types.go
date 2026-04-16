@@ -140,6 +140,9 @@ type TestCase struct {
 	Name string
 	// Purpose is a brief human-readable description.
 	Purpose string
+	// Disabled marks this test as off by default. It will be skipped unless
+	// explicitly requested by ID.
+	Disabled bool
 	// MTPs this test applies to. nil / empty = all MTPs.
 	MTPs []string
 	// Tags for filtering (e.g. "add", "set", "negative").

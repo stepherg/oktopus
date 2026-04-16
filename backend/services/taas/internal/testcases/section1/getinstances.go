@@ -151,5 +151,32 @@ func getInstancesCases() []testcases.TestCase {
 				return testcases.Pass(testcases.Step("no error returned for unmatched expression", "pass", string(raw.RawBody)))
 			},
 		},
+		{
+			ID:      "1.70",
+			Section: 1,
+			Name:    "GetInstances message with wildcard search path",
+			Purpose: "Verify the agent returns curr_insts for all instances of a sub-object when a wildcard search path is used.",
+			Tags:    []string{"get_instances", "wildcard"},
+			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
+				cfg.Defaults()
+				// Device.LocalAgent.Controller.*.MTP. – wildcard expands all Controller instances.
+				wildcardPath := cfg.GetInstancesObject + "*.MTP."
+				resp, raw, err := sendGetInstances(ctx, c, target, getInstancesRequest{
+					ObjPaths:       []string{wildcardPath},
+					FirstLevelOnly: true,
+				})
+				if err != nil {
+					return testcases.Error(fmt.Sprintf("transport error: %v", err))
+				}
+				if isErr, code, msg := client.IsUSPError(raw.RawBody); isErr {
+					return testcases.Fail(fmt.Sprintf("USP error %d: %s", code, msg))
+				}
+				if resp == nil || len(resp.ReqPathResults) == 0 {
+					return testcases.Fail("no req_path_results in response",
+						testcases.Step("result check", "fail", string(raw.RawBody)))
+				}
+				return testcases.Pass(testcases.Step("GetInstancesResp received for wildcard search path", "pass", string(raw.RawBody)))
+			},
+		},
 	}
 }

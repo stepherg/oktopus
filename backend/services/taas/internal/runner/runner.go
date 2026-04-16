@@ -59,6 +59,7 @@ func (r *Runner) execute(runID string, req RunRequest) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
+	runStart := time.Now()
 	cases := r.registry.Filter(req.TestIDs, req.Sections)
 
 	var results []db.TestResultRecord
@@ -107,8 +108,16 @@ func (r *Runner) execute(runID string, req RunRequest) {
 		case "pass":
 			summary.Passed++
 		case "fail":
+			log.Printf("[taas] run %s: FAIL %s – %s", runID, tc.ID, result.Note)
+			for _, s := range result.Steps {
+				log.Printf("[taas]   step [%s] %s: %s", s.Status, s.Description, s.Detail)
+			}
 			summary.Failed++
 		case "error":
+			log.Printf("[taas] run %s: ERROR %s – %s", runID, tc.ID, result.Note)
+			for _, s := range result.Steps {
+				log.Printf("[taas]   step [%s] %s: %s", s.Status, s.Description, s.Detail)
+			}
 			summary.Errored++
 		default:
 			summary.Skipped++
@@ -116,12 +125,13 @@ func (r *Runner) execute(runID string, req RunRequest) {
 	}
 
 	final := db.TestRunDocument{
-		Name:     req.Name,
-		DeviceID: req.DeviceID,
-		MTP:      req.MTP,
-		EndTime:  time.Now(),
-		Results:  results,
-		Summary:  summary,
+		Name:      req.Name,
+		DeviceID:  req.DeviceID,
+		MTP:       req.MTP,
+		StartTime: runStart,
+		EndTime:   time.Now(),
+		Results:   results,
+		Summary:   summary,
 	}
 	if err := r.database.UpdateRun(runID, final); err != nil {
 		log.Printf("[taas] run %s: failed to persist results: %v", runID, err)

@@ -12,6 +12,9 @@ import (
 	"github.com/leandrofars/oktopus/taas/internal/testcases"
 	"github.com/leandrofars/oktopus/taas/internal/testcases/section1"
 	"github.com/leandrofars/oktopus/taas/internal/testcases/section11"
+	"github.com/leandrofars/oktopus/taas/internal/testcases/section2"
+	"github.com/leandrofars/oktopus/taas/internal/testcases/section3"
+	"github.com/leandrofars/oktopus/taas/internal/testcases/section4"
 	"github.com/leandrofars/oktopus/taas/internal/testcases/section6"
 	"github.com/leandrofars/oktopus/taas/internal/testcases/section7"
 )
@@ -26,6 +29,9 @@ func main() {
 
 	registry := testcases.NewRegistry()
 	registry.Register(section1.All()...)
+	registry.Register(section2.All()...)
+	registry.Register(section3.All()...)
+	registry.Register(section4.All()...)
 	registry.Register(section6.All()...)
 	registry.Register(section7.All()...)
 	registry.Register(section11.All()...)

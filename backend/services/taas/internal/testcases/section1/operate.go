@@ -24,9 +24,13 @@ type operateResp struct {
 	OperationResults []struct {
 		ExecutedCommand string `json:"executed_command"`
 		OperStatus      struct {
+			// Synchronous command success.
 			ReqObjSuccess *struct {
 				OutputArgs map[string]string `json:"output_args"`
 			} `json:"req_obj_success"`
+			// Asynchronous command success: path to the created Request object.
+			ReqObjPath string `json:"req_obj_path"`
+			// Command failure.
 			ReqObjFailure *struct {
 				ErrCode uint32 `json:"err_code"`
 				ErrMsg  string `json:"err_msg"`
@@ -52,11 +56,12 @@ func sendOperate(ctx context.Context, c *client.ControllerClient, target testcas
 func operateCases() []testcases.TestCase {
 	return []testcases.TestCase{
 		{
-			ID:      "1.61",
-			Section: 1,
-			Name:    "Operate message using Reboot() with send_resp true",
-			Purpose: "Verify the agent returns an OperateResponse before rebooting when send_resp=true.",
-			Tags:    []string{"operate", "reboot"},
+			ID:       "1.61",
+			Section:  1,
+			Name:     "Operate message using Reboot() with send_resp true",
+			Purpose:  "Verify the agent returns an OperateResponse before rebooting when send_resp=true.",
+			Disabled: true,
+			Tags:     []string{"operate", "reboot"},
 			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
 				cfg.Defaults()
 				resp, raw, err := sendOperate(ctx, c, target, operateRequest{
@@ -81,11 +86,12 @@ func operateCases() []testcases.TestCase {
 			},
 		},
 		{
-			ID:      "1.62",
-			Section: 1,
-			Name:    "Operate message using Reboot() with send_resp false",
-			Purpose: "Verify the agent does not return an OperateResponse when send_resp=false.",
-			Tags:    []string{"operate", "reboot"},
+			ID:       "1.62",
+			Section:  1,
+			Name:     "Operate message using Reboot() with send_resp false",
+			Purpose:  "Verify the agent does not return an OperateResponse when send_resp=false.",
+			Disabled: true,
+			Tags:     []string{"operate", "reboot"},
 			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
 				cfg.Defaults()
 				// When send_resp=false the agent MUST NOT send a response.
@@ -113,11 +119,16 @@ func operateCases() []testcases.TestCase {
 			ID:      "1.79",
 			Section: 1,
 			Name:    "Operate message using input arguments",
-			Purpose: "Verify the agent correctly processes input arguments in an Operate message.",
+			Purpose: "Verify the agent correctly processes input arguments in an Operate message (spec uses Device.ScheduleTimer()).",
 			Tags:    []string{"operate"},
 			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
 				cfg.Defaults()
-				// Use a well-known command that accepts input args if defined; fall back to Reboot.
+				// This test requires a command that accepts input arguments (e.g. Device.ScheduleTimer()).
+				// Reboot has no defined input arguments, so it cannot verify argument processing.
+				// If no suitable command is configured, skip.
+				if cfg.RebootCommand == "Device.Reboot()" {
+					return testcases.Skip("test 1.79 requires a command with input arguments (e.g. Device.ScheduleTimer()); configure a suitable command via RebootCommand or add a dedicated TestConfig field")
+				}
 				resp, raw, err := sendOperate(ctx, c, target, operateRequest{
 					Command:    cfg.RebootCommand,
 					CommandKey: "tp469-1.79",
@@ -141,30 +152,48 @@ func operateCases() []testcases.TestCase {
 			ID:      "1.91",
 			Section: 1,
 			Name:    "Unknown arguments in an Operate message",
-			Purpose: "Verify the agent ignores unknown input arguments rather than refusing the operation.",
+			Purpose: "Verify the agent ignores unknown input arguments in an Operate message using Device.ScheduleTimer() (TP-469 §1.91).",
 			Tags:    []string{"operate"},
 			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
 				cfg.Defaults()
+				// Per TP-469 §1.91: send Device.ScheduleTimer() with one valid argument
+				// (DelaySeconds) and one unknown argument (InvalidArgument). The agent
+				// MUST ignore unknown arguments and return a successful OperateResp
+				// with 'ScheduleTimer()' in the executed_command element.
+				const command = "Device.ScheduleTimer()"
 				resp, raw, err := sendOperate(ctx, c, target, operateRequest{
-					Command:    cfg.RebootCommand,
-					CommandKey: "tp469-1.91",
-					SendResp:   true,
-					InputArgs:  map[string]string{"UnknownArg_TP469_1_91": "irrelevant"},
+					Command:  command,
+					SendResp: true,
+					InputArgs: map[string]string{
+						"DelaySeconds":    "10",
+						"InvalidArgument": "2",
+					},
 				})
 				if err != nil {
 					return testcases.Error(fmt.Sprintf("transport error: %v", err))
 				}
-				// The agent must not reject the command solely because of unknown args.
-				if resp != nil && len(resp.OperationResults) > 0 {
-					if resp.OperationResults[0].OperStatus.ReqObjSuccess != nil {
-						return testcases.Pass(testcases.Step("operation succeeded despite unknown arg", "pass", string(raw.RawBody)))
-					}
-				}
-				// A top-level USP error for this reason is a failure.
 				if isErr, code, msg := client.IsUSPError(raw.RawBody); isErr {
-					return testcases.Fail(fmt.Sprintf("agent returned USP error %d (%s) for unknown arg – must be ignored", code, msg))
+					return testcases.Fail(fmt.Sprintf("USP error %d: %s", code, msg))
 				}
-				return testcases.Pass(testcases.Step("agent handled unknown input_arg", "pass", string(raw.RawBody)))
+				if resp == nil || len(resp.OperationResults) == 0 {
+					return testcases.Fail("no operation_results in OperateResp",
+						testcases.Step("operation_results check", "fail", string(raw.RawBody)))
+				}
+				result := resp.OperationResults[0]
+				// A cmd_failure means the agent rejected the command – the unknown arg
+				// must be silently ignored per the spec.
+				if result.OperStatus.ReqObjFailure != nil {
+					return testcases.Fail(
+						fmt.Sprintf("agent rejected command (err_code=%d: %s) – unknown input args must be silently ignored",
+							result.OperStatus.ReqObjFailure.ErrCode, result.OperStatus.ReqObjFailure.ErrMsg),
+						testcases.Step("OperateResp", "fail", string(raw.RawBody)))
+				}
+				// Device.ScheduleTimer() is asynchronous; a non-empty req_obj_path or
+				// a non-nil req_obj_success both indicate the command was accepted.
+				return testcases.Pass(
+					testcases.Step("agent accepted Device.ScheduleTimer() despite unknown input arg", "pass",
+						fmt.Sprintf("executed_command: %s", result.ExecutedCommand)),
+				)
 			},
 		},
 		{

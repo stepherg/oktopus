@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Alert,
   Box,
@@ -26,14 +26,30 @@ import {
 import BeakerIcon from '@heroicons/react/24/outline/BeakerIcon';
 import { SvgIcon } from '@mui/material';
 
+const REST_ENDPOINT = process.env.NEXT_PUBLIC_REST_ENDPOINT || '';
+
 const SECTIONS = [
-  { id: 1, label: '§1 Messages & Path Names' },
-  { id: 6, label: '§6 STOMP' },
-  { id: 7, label: '§7 WebSocket' },
+  { id: 1,  label: '§1 Messages & Path Names' },
+  { id: 2,  label: '§2 USP Record Handling' },
+  { id: 3,  label: '§3 USP Record Test Cases' },
+  { id: 4,  label: '§4 General MTP' },
+  { id: 6,  label: '§6 STOMP' },
+  { id: 7,  label: '§7 WebSocket' },
   { id: 11, label: '§11 MQTT' },
 ];
 
 const MTP_OPTIONS = ['mqtt', 'ws', 'stomp', 'webpa'];
+
+// Map device API field names to MTP option values.
+const DEVICE_MTP_FIELDS = [
+  { field: 'Mqtt',       mtp: 'mqtt'  },
+  { field: 'Websockets', mtp: 'ws'    },
+  { field: 'Stomp',      mtp: 'stomp' },
+  { field: 'Webpa',      mtp: 'webpa' },
+];
+
+const detectMTPs = (device) =>
+  device ? DEVICE_MTP_FIELDS.filter((m) => device[m.field]).map((m) => m.mtp) : [];
 
 const defaultConfig = {
   multi_instance_object: 'Device.LocalAgent.Subscription.',
@@ -49,8 +65,10 @@ const defaultConfig = {
 
 export const TestRunner = ({ tests, taasRequest, onRunStarted }) => {
   const [deviceId, setDeviceId] = useState('');
+  const [connectedDevices, setConnectedDevices] = useState([]);
+  const [loadingDevices, setLoadingDevices] = useState(false);
   const [mtp, setMtp] = useState('mqtt');
-  const [controllerUrl, setControllerUrl] = useState('http://localhost:8000');
+  const [controllerUrl, setControllerUrl] = useState('http://controller:8000');
   const [runName, setRunName] = useState('');
   const [selectedSections, setSelectedSections] = useState([]);
   const [selectedTestIds, setSelectedTestIds] = useState([]);
@@ -61,6 +79,59 @@ export const TestRunner = ({ tests, taasRequest, onRunStarted }) => {
   const [success, setSuccess] = useState('');
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : '';
+
+  useEffect(() => {
+    const fetchConnectedDevices = async () => {
+      setLoadingDevices(true);
+      const url = `${REST_ENDPOINT}/api/device?page_size=50`;
+      const token = localStorage.getItem('token');
+      console.log('[TestRunner] Fetching devices from:', url);
+      console.log('[TestRunner] Token present:', !!token);
+      try {
+        var myHeaders = new Headers();
+        myHeaders.append('Content-Type', 'application/json');
+        myHeaders.append('Authorization', token);
+
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: myHeaders,
+          redirect: 'follow',
+        });
+        console.log('[TestRunner] Device fetch status:', res.status);
+        if (res.ok) {
+          const data = await res.json();
+          console.log('[TestRunner] Device response:', data);
+          // Only show online devices (status 2) in the dropdown
+          const all = Array.isArray(data.devices) ? data.devices : [];
+          const online = all.filter((d) => d.Status === 2);
+          console.log('[TestRunner] Total devices:', all.length, '| Online:', online.length);
+          setConnectedDevices(online);
+        } else if (res.status === 401) {
+          console.error('[TestRunner] Unauthorized fetching devices');
+        } else if (res.status === 404) {
+          console.log('[TestRunner] No devices found (404)');
+          setConnectedDevices([]);
+        } else {
+          const text = await res.text();
+          console.error('[TestRunner] Unexpected response:', res.status, text);
+        }
+      } catch (e) {
+        console.error('[TestRunner] Failed to fetch connected devices', e);
+      } finally {
+        setLoadingDevices(false);
+      }
+    };
+    fetchConnectedDevices();
+  }, []);
+
+  const handleDeviceChange = (sn) => {
+    setDeviceId(sn);
+    const device = connectedDevices.find((d) => d.SN === sn);
+    const detected = detectMTPs(device);
+    if (detected.length > 0) {
+      setMtp(detected[0]);
+    }
+  };
 
   const handleSectionToggle = (section) => {
     setSelectedSections((prev) =>
@@ -129,19 +200,35 @@ export const TestRunner = ({ tests, taasRequest, onRunStarted }) => {
                 size="small"
                 placeholder="My Test Run"
               />
-              <TextField
-                label="Device ID (serial number)"
-                value={deviceId}
-                onChange={(e) => setDeviceId(e.target.value)}
-                fullWidth
-                size="small"
-                required
-                placeholder="sn-12345"
-              />
+              <FormControl fullWidth size="small" required>
+                <InputLabel>Target Device</InputLabel>
+                <Select
+                  value={deviceId}
+                  label="Target Device"
+                  onChange={(e) => handleDeviceChange(e.target.value)}
+                  disabled={loadingDevices}
+                  displayEmpty
+                >
+                  {loadingDevices ? (
+                    <MenuItem disabled>Loading devices…</MenuItem>
+                  ) : connectedDevices.length === 0 ? (
+                    <MenuItem disabled>No connected devices found</MenuItem>
+                  ) : (
+                    connectedDevices.map((d) => (
+                      <MenuItem key={d.SN} value={d.SN}>
+                        {d.Alias ? `${d.SN} — ${d.Alias}` : d.SN}
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+              </FormControl>
               <FormControl fullWidth size="small">
                 <InputLabel>MTP</InputLabel>
                 <Select value={mtp} label="MTP" onChange={(e) => setMtp(e.target.value)}>
-                  {MTP_OPTIONS.map((m) => (
+                  {(detectMTPs(connectedDevices.find((d) => d.SN === deviceId)).length > 0
+                    ? detectMTPs(connectedDevices.find((d) => d.SN === deviceId))
+                    : MTP_OPTIONS
+                  ).map((m) => (
                     <MenuItem key={m} value={m}>
                       {m.toUpperCase()}
                     </MenuItem>
@@ -182,9 +269,51 @@ export const TestRunner = ({ tests, taasRequest, onRunStarted }) => {
             </FormGroup>
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
               {selectedSections.length > 0
-                ? `Running ${tests.filter((t) => selectedSections.includes(t.section)).length} tests`
-                : `Running all ${tests.length} tests`}
+                ? `Running ${tests.filter((t) => selectedSections.includes(t.section) && !t.disabled).length} tests`
+                : `Running all ${tests.filter((t) => !t.disabled).length} tests`}
             </Typography>
+          </CardContent>
+        </Card>
+      </Grid>
+
+      <Grid item xs={12}>
+        <Card>
+          <CardHeader
+            title="Individual Tests"
+            subheader="Optionally select specific tests to run (overrides section selection). Disabled-by-default tests can be included here."
+            action={
+              <Button size="small" onClick={() => setSelectedTestIds([])}>
+                Clear
+              </Button>
+            }
+          />
+          <Divider />
+          <CardContent>
+            <FormControl fullWidth size="small">
+              <InputLabel>Select tests</InputLabel>
+              <Select
+                multiple
+                value={selectedTestIds}
+                label="Select tests"
+                onChange={(e) => {
+                  setSelectedTestIds(e.target.value);
+                  setSelectedSections([]);
+                }}
+                renderValue={(selected) => selected.join(', ')}
+              >
+                {tests.map((t) => (
+                  <MenuItem key={t.id} value={t.id}>
+                    <Checkbox checked={selectedTestIds.includes(t.id)} />
+                    <Typography variant="body2" sx={{ mr: 1 }}>
+                      {t.id} — {t.name}
+                    </Typography>
+                    {t.disabled && (
+                      <Chip label="disabled" size="small" color="error" variant="outlined" sx={{ ml: 'auto' }} />
+                    )}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </CardContent>
         </Card>
       </Grid>

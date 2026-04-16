@@ -17,7 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func sendUspMsg(msg usp_msg.Msg, sn string, w http.ResponseWriter, nc *nats.Conn, mtp string) error {
+func sendUspMsg(msg usp_msg.Msg, sn string, w http.ResponseWriter, nc *nats.Conn, mtp, fromID, toID string) error {
 
 	protoMsg, err := proto.Marshal(&msg)
 	if err != nil {
@@ -26,7 +26,7 @@ func sendUspMsg(msg usp_msg.Msg, sn string, w http.ResponseWriter, nc *nats.Conn
 		return err
 	}
 
-	record := usp_utils.NewUspRecord(protoMsg, sn)
+	record := usp_utils.NewUspRecordWithOverrides(protoMsg, sn, fromID, toID)
 	protoRecord, err := proto.Marshal(&record)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -98,6 +98,14 @@ func sendUspMsg(msg usp_msg.Msg, sn string, w http.ResponseWriter, nc *nats.Conn
 	return nil
 }
 
+// uspOverrides reads optional USP Record header overrides from query parameters.
+// ?usp_from_id=<value> overrides the from_id field in the outgoing USP Record.
+// ?usp_to_id=<value>  overrides the to_id  field in the outgoing USP Record.
+// An empty string means "use the controller default".
+func uspOverrides(r *http.Request) (fromID, toID string) {
+	return r.URL.Query().Get("usp_from_id"), r.URL.Query().Get("usp_to_id")
+}
+
 func (a *Api) deviceGenericMessage(w http.ResponseWriter, r *http.Request) {
 
 	sn := getSerialNumberFromRequest(r)
@@ -130,7 +138,8 @@ func (a *Api) deviceGenericMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = sendUspMsg(msg, sn, w, a.nc, mtp)
+	fromID, toID := uspOverrides(r)
+	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -157,7 +166,8 @@ func (a *Api) deviceGetMsg(w http.ResponseWriter, r *http.Request) {
 	utils.MarshallDecoder(&get, r.Body)
 	msg := usp_utils.NewGetMsg(get)
 
-	err = sendUspMsg(msg, sn, w, a.nc, mtp)
+	fromID, toID := uspOverrides(r)
+	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -184,7 +194,8 @@ func (a *Api) deviceGetSupportedParametersMsg(w http.ResponseWriter, r *http.Req
 	utils.MarshallDecoder(&getSupportedDM, r.Body)
 	msg := usp_utils.NewGetSupportedParametersMsg(getSupportedDM)
 
-	err = sendUspMsg(msg, sn, w, a.nc, mtp)
+	fromID, toID := uspOverrides(r)
+	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -211,7 +222,8 @@ func (a *Api) deviceOperateMsg(w http.ResponseWriter, r *http.Request) {
 	utils.MarshallDecoder(&operate, r.Body)
 	msg := usp_utils.NewOperateMsg(operate)
 
-	err = sendUspMsg(msg, sn, w, a.nc, mtp)
+	fromID, toID := uspOverrides(r)
+	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -249,7 +261,8 @@ func (a *Api) deviceNotifyMsg(w http.ResponseWriter, r *http.Request) {
 
 	msg := usp_utils.NewNotifyMsg(notify)
 
-	err = sendUspMsg(msg, sn, w, a.nc, mtp)
+	fromID, toID := uspOverrides(r)
+	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -276,7 +289,8 @@ func (a *Api) deviceUpdateMsg(w http.ResponseWriter, r *http.Request) {
 	utils.MarshallDecoder(&set, r.Body)
 	msg := usp_utils.NewSetMsg(set)
 
-	err = sendUspMsg(msg, sn, w, a.nc, mtp)
+	fromID, toID := uspOverrides(r)
+	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -303,7 +317,8 @@ func (a *Api) deviceGetParameterInstances(w http.ResponseWriter, r *http.Request
 	utils.MarshallDecoder(&getInstances, r.Body)
 	msg := usp_utils.NewGetParametersInstancesMsg(getInstances)
 
-	err = sendUspMsg(msg, sn, w, a.nc, mtp)
+	fromID, toID := uspOverrides(r)
+	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -330,7 +345,8 @@ func (a *Api) deviceCreateMsg(w http.ResponseWriter, r *http.Request) {
 	utils.MarshallDecoder(&add, r.Body)
 	msg := usp_utils.NewCreateMsg(add)
 
-	err = sendUspMsg(msg, sn, w, a.nc, mtp)
+	fromID, toID := uspOverrides(r)
+	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -357,7 +373,8 @@ func (a *Api) deviceDeleteMsg(w http.ResponseWriter, r *http.Request) {
 	utils.MarshallDecoder(&del, r.Body)
 	msg := usp_utils.NewDelMsg(del)
 
-	err = sendUspMsg(msg, sn, w, a.nc, mtp)
+	fromID, toID := uspOverrides(r)
+	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}

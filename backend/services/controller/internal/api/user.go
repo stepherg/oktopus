@@ -256,7 +256,6 @@ func (a *Api) adminUserExists(w http.ResponseWriter, r *http.Request) {
 	}
 	adminExits := adminUserExists(users)
 	json.NewEncoder(w).Encode(adminExits)
-	return
 }
 
 type TokenRequest struct {
@@ -295,5 +294,4 @@ func (a *Api) generateToken(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Add("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(token)
-	return
 }

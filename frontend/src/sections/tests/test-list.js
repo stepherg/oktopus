@@ -27,9 +27,12 @@ import ArrowPathIcon from '@heroicons/react/24/outline/ArrowPathIcon';
 import { SvgIcon } from '@mui/material';
 
 const SECTION_LABELS = {
-  1: 'Messages & Path Names',
-  6: 'STOMP',
-  7: 'WebSocket',
+  1:  'Messages & Path Names',
+  2:  'USP Record Handling',
+  3:  'USP Record Test Cases',
+  4:  'General MTP',
+  6:  'STOMP',
+  7:  'WebSocket',
   11: 'MQTT',
 };
 
@@ -117,6 +120,7 @@ export const TestList = ({ tests, loading, onRefresh }) => {
                   <TableCell>Purpose</TableCell>
                   <TableCell width={160}>MTPs</TableCell>
                   <TableCell>Tags</TableCell>
+                  <TableCell width={90}>Status</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -160,6 +164,13 @@ export const TestList = ({ tests, loading, onRefresh }) => {
                           <Chip key={tag} label={tag} size="small" variant="outlined" />
                         ))}
                       </Stack>
+                    </TableCell>
+                    <TableCell>
+                      {tc.disabled && (
+                        <Tooltip title="Disabled by default — select individually in Run Tests to include">
+                          <Chip label="Disabled" size="small" color="error" variant="outlined" />
+                        </Tooltip>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

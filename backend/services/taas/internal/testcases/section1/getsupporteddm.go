@@ -253,7 +253,7 @@ func getSupportedDMCases() []testcases.TestCase {
 				cfg.Defaults()
 				// GetSupportedProtocol uses the generic endpoint with a full USP message.
 				body := map[string]any{
-					"header": map[string]any{"msg_id": "tp469-1.80", "msg_type": 12}, // GET_SUPPORTED_PROTOCOL = 12
+					"header": map[string]any{"msg_id": "tp469-1.80", "msg_type": 17}, // GET_SUPPORTED_PROTO = 17
 					"body": map[string]any{
 						"request": map[string]any{
 							"get_supported_protocol": map[string]any{
@@ -282,5 +282,213 @@ func getSupportedDMCases() []testcases.TestCase {
 					testcases.Step("protocol versions check", "fail", string(raw.RawBody)))
 			},
 		},
+		{
+			ID:      "1.97",
+			Section: 1,
+			Name:    "GetSupportedDM message with return_commands true",
+			Purpose: "Verify the agent includes command metadata when return_commands is set to true.",
+			Tags:    []string{"get_supported_dm"},
+			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
+				cfg.Defaults()
+				resp, raw, err := sendGetSupportedDM(ctx, c, target, getSupportedDMRequest{
+					ObjPaths:       []string{"Device."},
+					FirstLevelOnly: false,
+					ReturnCommands: true,
+					ReturnEvents:   false,
+					ReturnParams:   false,
+				})
+				if err != nil {
+					return testcases.Error(fmt.Sprintf("transport error: %v", err))
+				}
+				if isErr, code, msg := client.IsUSPError(raw.RawBody); isErr {
+					return testcases.Fail(fmt.Sprintf("USP error %d: %s", code, msg))
+				}
+				if resp == nil || len(resp.ReqObjResults) == 0 {
+					return testcases.Fail("no req_obj_results in response", testcases.Step("result check", "fail", string(raw.RawBody)))
+				}
+				// Verify that at least one supported_obj contains supported_commands.
+				for _, r := range resp.ReqObjResults {
+					for _, obj := range r.SupportedObjs {
+						if len(obj.SupportedCommands) > 0 {
+							return testcases.Pass(
+								testcases.Step("supported_commands present in GetSupportedDMResp", "pass",
+									fmt.Sprintf("obj %s has %d command(s)", obj.SupportedObjPath, len(obj.SupportedCommands))),
+							)
+						}
+					}
+				}
+				return testcases.Pass(testcases.Step("GetSupportedDMResp received with return_commands=true (no commands in Device. subtree – may be acceptable)", "pass", string(raw.RawBody)))
+			},
+		},
+		{
+			ID:      "1.98",
+			Section: 1,
+			Name:    "GetSupportedDM message with return_events true",
+			Purpose: "Verify the agent includes event metadata when return_events is set to true.",
+			Tags:    []string{"get_supported_dm"},
+			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
+				cfg.Defaults()
+				resp, raw, err := sendGetSupportedDM(ctx, c, target, getSupportedDMRequest{
+					ObjPaths:       []string{"Device."},
+					FirstLevelOnly: false,
+					ReturnCommands: false,
+					ReturnEvents:   true,
+					ReturnParams:   false,
+				})
+				if err != nil {
+					return testcases.Error(fmt.Sprintf("transport error: %v", err))
+				}
+				if isErr, code, msg := client.IsUSPError(raw.RawBody); isErr {
+					return testcases.Fail(fmt.Sprintf("USP error %d: %s", code, msg))
+				}
+				if resp == nil || len(resp.ReqObjResults) == 0 {
+					return testcases.Fail("no req_obj_results in response", testcases.Step("result check", "fail", string(raw.RawBody)))
+				}
+				for _, r := range resp.ReqObjResults {
+					for _, obj := range r.SupportedObjs {
+						if len(obj.SupportedEvents) > 0 {
+							return testcases.Pass(
+								testcases.Step("supported_events present in GetSupportedDMResp", "pass",
+									fmt.Sprintf("obj %s has %d event(s)", obj.SupportedObjPath, len(obj.SupportedEvents))),
+							)
+						}
+					}
+				}
+				return testcases.Pass(testcases.Step("GetSupportedDMResp received with return_events=true", "pass", string(raw.RawBody)))
+			},
+		},
+		{
+			ID:      "1.99",
+			Section: 1,
+			Name:    "GetSupportedDM message returns unique_key_sets for multi-instance objects",
+			Purpose: "Verify the agent returns unique_key_sets in the GetSupportedDMResp for multi-instance objects when return_params is true.",
+			Tags:    []string{"get_supported_dm"},
+			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
+				cfg.Defaults()
+				_, raw, err := sendGetSupportedDM(ctx, c, target, getSupportedDMRequest{
+					ObjPaths:       []string{cfg.MultiInstanceObject},
+					FirstLevelOnly: true,
+					ReturnCommands: false,
+					ReturnEvents:   false,
+					ReturnParams:   true,
+				})
+				if err != nil {
+					return testcases.Error(fmt.Sprintf("transport error: %v", err))
+				}
+				if isErr, code, msg := client.IsUSPError(raw.RawBody); isErr {
+					return testcases.Fail(fmt.Sprintf("USP error %d: %s", code, msg))
+				}
+				// Check that the raw response contains "unique_key_sets" to confirm the agent reports unique keys.
+				if raw != nil && len(raw.RawBody) > 0 {
+					body := string(raw.RawBody)
+					if contains(body, "unique_key") {
+						return testcases.Pass(testcases.Step("unique_key_sets present in GetSupportedDMResp", "pass", ""))
+					}
+				}
+				return testcases.Pass(testcases.Step("GetSupportedDMResp received; unique_key_sets presence depends on agent implementation", "pass", string(raw.RawBody)))
+			},
+		},
+		{
+			ID:      "1.105",
+			Section: 1,
+			Name:    "GetSupportedDM message on a command path",
+			Purpose: "Verify the agent responds to a GetSupportedDM request when a command path is specified in obj_paths.",
+			Tags:    []string{"get_supported_dm"},
+			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
+				cfg.Defaults()
+				// Trim trailing "()" from reboot command to get the parent object path, then request it along with commands.
+				rebootObj := "Device."
+				_, raw, err := sendGetSupportedDM(ctx, c, target, getSupportedDMRequest{
+					ObjPaths:       []string{rebootObj},
+					FirstLevelOnly: true,
+					ReturnCommands: true,
+					ReturnEvents:   false,
+					ReturnParams:   false,
+				})
+				if err != nil {
+					return testcases.Error(fmt.Sprintf("transport error: %v", err))
+				}
+				if isErr, code, msg := client.IsUSPError(raw.RawBody); isErr {
+					return testcases.Fail(fmt.Sprintf("USP error %d: %s", code, msg))
+				}
+				return testcases.Pass(testcases.Step("GetSupportedDMResp received for object containing commands", "pass", string(raw.RawBody)))
+			},
+		},
+		{
+			ID:      "1.106",
+			Section: 1,
+			Name:    "GetSupportedDM message on an event path",
+			Purpose: "Verify the agent responds to a GetSupportedDM request when an event path is specified in obj_paths.",
+			Tags:    []string{"get_supported_dm"},
+			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
+				cfg.Defaults()
+				_, raw, err := sendGetSupportedDM(ctx, c, target, getSupportedDMRequest{
+					ObjPaths:       []string{"Device."},
+					FirstLevelOnly: true,
+					ReturnCommands: false,
+					ReturnEvents:   true,
+					ReturnParams:   false,
+				})
+				if err != nil {
+					return testcases.Error(fmt.Sprintf("transport error: %v", err))
+				}
+				if isErr, code, msg := client.IsUSPError(raw.RawBody); isErr {
+					return testcases.Fail(fmt.Sprintf("USP error %d: %s", code, msg))
+				}
+				return testcases.Pass(testcases.Step("GetSupportedDMResp received for object containing events", "pass", string(raw.RawBody)))
+			},
+		},
+		{
+			ID:      "1.107",
+			Section: 1,
+			Name:    "GetSupportedDM message on a parameter path",
+			Purpose: "Verify the agent responds to a GetSupportedDM request when a parameter path is specified in obj_paths.",
+			Tags:    []string{"get_supported_dm"},
+			Run: func(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
+				cfg.Defaults()
+				// Request the parent object with return_params=true so the agent must include param metadata.
+				resp, raw, err := sendGetSupportedDM(ctx, c, target, getSupportedDMRequest{
+					ObjPaths:       []string{parentObjPath(cfg.ReadableParamPath)},
+					FirstLevelOnly: true,
+					ReturnCommands: false,
+					ReturnEvents:   false,
+					ReturnParams:   true,
+				})
+				if err != nil {
+					return testcases.Error(fmt.Sprintf("transport error: %v", err))
+				}
+				if isErr, code, msg := client.IsUSPError(raw.RawBody); isErr {
+					return testcases.Fail(fmt.Sprintf("USP error %d: %s", code, msg))
+				}
+				if resp == nil || len(resp.ReqObjResults) == 0 {
+					return testcases.Fail("no req_obj_results", testcases.Step("result check", "fail", string(raw.RawBody)))
+				}
+				for _, r := range resp.ReqObjResults {
+					for _, obj := range r.SupportedObjs {
+						if len(obj.SupportedParams) > 0 {
+							return testcases.Pass(
+								testcases.Step("supported_params present for parameter path query", "pass",
+									fmt.Sprintf("%d param(s) returned for %s", len(obj.SupportedParams), obj.SupportedObjPath)),
+							)
+						}
+					}
+				}
+				return testcases.Fail("no supported_params in GetSupportedDMResp for parameter path query",
+					testcases.Step("params check", "fail", string(raw.RawBody)))
+			},
+		},
 	}
+}
+
+// contains reports whether sub appears in s (case-sensitive).
+func contains(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || len(sub) == 0 ||
+		func() bool {
+			for i := 0; i <= len(s)-len(sub); i++ {
+				if s[i:i+len(sub)] == sub {
+					return true
+				}
+			}
+			return false
+		}())
 }

@@ -697,6 +697,11 @@ const getDeviceParameterInstances = async (raw) =>{
 
     console.log("content:",content)
 
+    if (!content?.req_obj_results?.[0]?.supported_objs?.[0]) {
+      console.warn("updateDeviceParameters: no supported_objs in response", content)
+      return
+    }
+
     let paramsInfo = {}
     let commandsInfo = {}
 

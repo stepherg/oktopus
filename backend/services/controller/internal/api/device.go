@@ -66,11 +66,12 @@ func (a *Api) retrieveDevices(w http.ResponseWriter, r *http.Request) {
 	statusOrderFromUser := r.URL.Query().Get("statusOrder")
 	var statusOrder int
 	if statusOrderFromUser != "" {
-		if statusOrderFromUser == "asc" {
+		switch statusOrderFromUser {
+		case "asc":
 			statusOrder = 1
-		} else if statusOrderFromUser == "desc" {
+		case "desc":
 			statusOrder = -1
-		} else {
+		default:
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode("Status order must be 'asc' or 'desc'")
 			return
@@ -214,7 +215,8 @@ func (a *Api) deviceAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Method == http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
 
 		id := r.URL.Query().Get("id")
 		if id != "" {
@@ -260,7 +262,7 @@ func (a *Api) deviceAuth(w http.ResponseWriter, r *http.Request) {
 
 		utils.MarshallEncoder(listOfKeys, w)
 
-	} else if r.Method == http.MethodDelete {
+	case http.MethodDelete:
 
 		id := r.URL.Query().Get("id")
 		if id != "" {
@@ -279,7 +281,7 @@ func (a *Api) deviceAuth(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		utils.MarshallEncoder("No id provided", w)
 
-	} else if r.Method == http.MethodPost {
+	case http.MethodPost:
 
 		var deviceAuth DeviceAuth
 
@@ -317,7 +319,7 @@ func (a *Api) deviceAuth(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		utils.MarshallEncoder("device must have a user", w)
 
-	} else {
+	default:
 		log.Println("Unknown method used in device auth api")
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return

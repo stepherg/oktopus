@@ -22,6 +22,30 @@ func NewUspRecord(p []byte, toId string) usp_record.Record {
 	}
 }
 
+// NewUspRecordWithOverrides creates a USP Record like NewUspRecord but allows
+// the caller to override the from_id and/or to_id fields. An empty override
+// string means "use the default value".
+func NewUspRecordWithOverrides(p []byte, toId, fromIDOverride, toIDOverride string) usp_record.Record {
+	fromId := "oktopusController"
+	if fromIDOverride != "" {
+		fromId = fromIDOverride
+	}
+	if toIDOverride != "" {
+		toId = toIDOverride
+	}
+	return usp_record.Record{
+		Version:         VERSION,
+		ToId:            toId,
+		FromId:          fromId,
+		PayloadSecurity: usp_record.Record_PLAINTEXT,
+		RecordType: &usp_record.Record_NoSessionContext{
+			NoSessionContext: &usp_record.NoSessionContextRecord{
+				Payload: p,
+			},
+		},
+	}
+}
+
 func NewCreateMsg(createStuff usp_msg.Add) usp_msg.Msg {
 	return usp_msg.Msg{
 		Header: &usp_msg.Header{

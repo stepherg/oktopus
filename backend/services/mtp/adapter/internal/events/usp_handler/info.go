@@ -15,6 +15,10 @@ func (h *Handler) HandleDeviceInfo(device, subject string, data []byte, mtp stri
 	defer ack()
 	log.Printf("Device %s info, mtp: %s", device, mtp)
 	deviceInfo := parseDeviceInfoMsg(device, subject, data, getMtp(mtp))
+	if deviceInfo.SN == "" {
+		log.Printf("Device info parsing produced empty SN for %s, skipping CreateDevice", device)
+		return
+	}
 	if deviceExists, _ := h.db.DeviceExists(deviceInfo.SN); !deviceExists {
 		fmtDeviceInfo, _ := json.Marshal(deviceInfo)
 		h.nc.Publish("device.v1.new", fmtDeviceInfo)

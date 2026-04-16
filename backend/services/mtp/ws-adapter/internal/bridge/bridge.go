@@ -228,6 +228,24 @@ func respondMsg(respond func(data []byte) error, code int, msgData any) {
 
 func (b *Bridge) newDeviceMsgHandler(wc *websocket.Conn, device string, msg []byte) {
 	log.Printf("New device %s response", device)
+
+	// A USP agent may send NOTIFY or other Request-type messages before (or
+	// interleaved with) the GetResponse triggered by deviceOnline.  Only treat
+	// the message as the info response when it is actually a Body_Response;
+	// otherwise forward it as a normal API message and keep the device in the
+	// queue so the real GetResponse is still captured.
+	var record usp_record.Record
+	if err := proto.Unmarshal(msg, &record); err == nil {
+		var message usp_msg.Msg
+		if err := proto.Unmarshal(record.GetNoSessionContext().Payload, &message); err == nil {
+			if _, isResponse := message.Body.MsgBody.(*usp_msg.Body_Response); !isResponse {
+				log.Printf("Device %s sent non-response message during info phase, routing as API", device)
+				b.Pub(DEVICE_SUBJECT_PREFIX+device+".api", msg)
+				return
+			}
+		}
+	}
+
 	b.Pub(NATS_WS_SUBJECT_PREFIX+device+".info", msg)
 
 	b.NewDevQMutex.Lock()

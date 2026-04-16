@@ -14,7 +14,7 @@ import { TestList } from 'src/sections/tests/test-list';
 import { TestRunner } from 'src/sections/tests/test-runner';
 import { TestResults } from 'src/sections/tests/test-results';
 
-const TAAS_ENDPOINT = process.env.NEXT_PUBLIC_TAAS_ENDPOINT || 'http://localhost:8001';
+const TAAS_ENDPOINT = process.env.NEXT_PUBLIC_TAAS_ENDPOINT || '';
 
 const Page = () => {
   useAuth();

@@ -24,7 +24,7 @@ type msgAnswer struct {
 func StartRequestsListener(ctx context.Context, nc *nats.Conn, db db.Database) {
 	log.Println("Listening for nats requests")
 
-	nc.QueueSubscribe(local.ADAPTER_SUBJECT+"*.device", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
+	_, _ = nc.QueueSubscribe(local.ADAPTER_SUBJECT+"*.device", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
 		subject := strings.Split(msg.Subject, ".")
 		device := subject[len(subject)-2]
 
@@ -42,7 +42,7 @@ func StartRequestsListener(ctx context.Context, nc *nats.Conn, db db.Database) {
 		}
 	})
 
-	nc.QueueSubscribe(local.ADAPTER_SUBJECT+"devices.count", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
+	_, _ = nc.QueueSubscribe(local.ADAPTER_SUBJECT+"devices.count", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
 		count, err := db.RetrieveDevicesCount(bson.M{})
 		if err != nil {
 			respondMsg(msg.Respond, 500, err.Error())
@@ -50,7 +50,7 @@ func StartRequestsListener(ctx context.Context, nc *nats.Conn, db db.Database) {
 		respondMsg(msg.Respond, 200, count)
 	})
 
-	nc.QueueSubscribe(local.ADAPTER_SUBJECT+"devices.retrieve", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
+	_, _ = nc.QueueSubscribe(local.ADAPTER_SUBJECT+"devices.retrieve", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
 
 		var criteria map[string]interface{}
 
@@ -100,42 +100,42 @@ func StartRequestsListener(ctx context.Context, nc *nats.Conn, db db.Database) {
 
 		filter := bson.A{
 			bson.D{
-				{"$match",
-					propertiesFilter,
+				{Key: "$match",
+					Value: propertiesFilter,
 				},
 			},
 			bson.D{
-				{"$facet",
-					bson.D{
-						{"totalCount",
-							bson.A{
-								bson.D{{"$count", "count"}},
+				{Key: "$facet",
+					Value: bson.D{
+						{Key: "totalCount",
+							Value: bson.A{
+								bson.D{{Key: "$count", Value: "count"}},
 							},
 						},
-						{"documents",
-							bson.A{
-								bson.D{{"$sort", bson.D{{"status", criteria["status_order"]}}}},
-								bson.D{{"$skip", criteria["skip"]}},
-								bson.D{{"$limit", criteria["limit"]}},
+						{Key: "documents",
+							Value: bson.A{
+								bson.D{{Key: "$sort", Value: bson.D{{Key: "status", Value: criteria["status_order"]}}}},
+								bson.D{{Key: "$skip", Value: criteria["skip"]}},
+								bson.D{{Key: "$limit", Value: criteria["limit"]}},
 							},
 						},
 					},
 				},
 			},
 			bson.D{
-				{"$project",
-					bson.D{
-						{"totalCount",
-							bson.D{
-								{"$arrayElemAt",
-									bson.A{
+				{Key: "$project",
+					Value: bson.D{
+						{Key: "totalCount",
+							Value: bson.D{
+								{Key: "$arrayElemAt",
+									Value: bson.A{
 										"$totalCount.count",
 										0,
 									},
 								},
 							},
 						},
-						{"documents", 1},
+						{Key: "documents", Value: 1},
 					},
 				},
 			},
@@ -148,7 +148,7 @@ func StartRequestsListener(ctx context.Context, nc *nats.Conn, db db.Database) {
 		respondMsg(msg.Respond, 200, &devicesList)
 	})
 
-	nc.QueueSubscribe(local.ADAPTER_SUBJECT+"devices.delete", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
+	_, _ = nc.QueueSubscribe(local.ADAPTER_SUBJECT+"devices.delete", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
 
 		var serialNumbersList []string
 
@@ -160,12 +160,12 @@ func StartRequestsListener(ctx context.Context, nc *nats.Conn, db db.Database) {
 		var criteria bson.A
 
 		for _, sn := range serialNumbersList {
-			criteria = append(criteria, bson.D{{"sn", sn}})
+			criteria = append(criteria, bson.D{{Key: "sn", Value: sn}})
 		}
 
 		// Create the filter with the $or operator
 		filter := bson.D{
-			{"$or", criteria},
+			{Key: "$or", Value: criteria},
 		}
 
 		deletedCount, err := db.DeleteDevices(filter)
@@ -175,7 +175,7 @@ func StartRequestsListener(ctx context.Context, nc *nats.Conn, db db.Database) {
 		respondMsg(msg.Respond, 200, deletedCount)
 	})
 
-	nc.QueueSubscribe(local.ADAPTER_SUBJECT+"devices.filterOptions", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
+	_, _ = nc.QueueSubscribe(local.ADAPTER_SUBJECT+"devices.filterOptions", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
 		result, err := db.RetrieveDeviceFilterOptions()
 		if err != nil {
 			respondMsg(msg.Respond, 500, err.Error())
@@ -183,7 +183,7 @@ func StartRequestsListener(ctx context.Context, nc *nats.Conn, db db.Database) {
 		respondMsg(msg.Respond, 200, result)
 	})
 
-	nc.QueueSubscribe(local.ADAPTER_SUBJECT+"devices.class", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
+	_, _ = nc.QueueSubscribe(local.ADAPTER_SUBJECT+"devices.class", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
 		productClassCount, err := db.RetrieveProductsClassInfo()
 		if err != nil {
 			respondMsg(msg.Respond, 500, err.Error())
@@ -191,7 +191,7 @@ func StartRequestsListener(ctx context.Context, nc *nats.Conn, db db.Database) {
 		respondMsg(msg.Respond, 200, productClassCount)
 	})
 
-	nc.QueueSubscribe(local.ADAPTER_SUBJECT+"devices.vendors", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
+	_, _ = nc.QueueSubscribe(local.ADAPTER_SUBJECT+"devices.vendors", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
 		productClassCount, err := db.RetrieveVendorsInfo()
 		if err != nil {
 			respondMsg(msg.Respond, 500, err.Error())
@@ -199,7 +199,7 @@ func StartRequestsListener(ctx context.Context, nc *nats.Conn, db db.Database) {
 		respondMsg(msg.Respond, 200, productClassCount)
 	})
 
-	nc.QueueSubscribe(local.ADAPTER_SUBJECT+"devices.status", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
+	_, _ = nc.QueueSubscribe(local.ADAPTER_SUBJECT+"devices.status", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
 		productClassCount, err := db.RetrieveStatusInfo()
 		if err != nil {
 			respondMsg(msg.Respond, 500, err.Error())
@@ -207,7 +207,7 @@ func StartRequestsListener(ctx context.Context, nc *nats.Conn, db db.Database) {
 		respondMsg(msg.Respond, 200, productClassCount)
 	})
 
-	nc.QueueSubscribe(local.ADAPTER_SUBJECT+"*.device.alias", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
+	_, _ = nc.QueueSubscribe(local.ADAPTER_SUBJECT+"*.device.alias", local.ADAPTER_QUEUE, func(msg *nats.Msg) {
 		subject := strings.Split(msg.Subject, ".")
 		device := subject[len(subject)-3]
 
@@ -232,9 +232,9 @@ func respondMsg(respond func(data []byte) error, code int, msgData any) {
 	})
 	if err != nil {
 		log.Printf("Failed to marshal message: %q", err)
-		respond([]byte(err.Error()))
+		_ = respond([]byte(err.Error()))
 		return
 	}
 
-	respond([]byte(msg))
+	_ = respond([]byte(msg))
 }

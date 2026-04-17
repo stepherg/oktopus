@@ -14,14 +14,14 @@ import (
 func (h *Handler) HandleDeviceInfo(device, subject string, data []byte, mtp string, ack func()) {
 	defer ack()
 	log.Printf("Device %s info, mtp: %s", device, mtp)
-	deviceInfo := parseDeviceInfoMsg(device, subject, data, getMtp(mtp))
+	deviceInfo := parseDeviceInfoMsg(device, data, getMtp(mtp))
 	if deviceInfo.SN == "" {
 		log.Printf("Device info parsing produced empty SN for %s, skipping CreateDevice", device)
 		return
 	}
 	if deviceExists, _ := h.db.DeviceExists(deviceInfo.SN); !deviceExists {
 		fmtDeviceInfo, _ := json.Marshal(deviceInfo)
-		h.nc.Publish("device.v1.new", fmtDeviceInfo)
+		_ = h.nc.Publish("device.v1.new", fmtDeviceInfo)
 	}
 	err := h.db.CreateDevice(deviceInfo)
 	if err != nil {
@@ -44,7 +44,7 @@ func getMtp(mtp string) db.MTP {
 	}
 }
 
-func parseDeviceInfoMsg(sn, subject string, data []byte, mtp db.MTP) db.Device {
+func parseDeviceInfoMsg(sn string, data []byte, mtp db.MTP) db.Device {
 	var record usp_record.Record
 	var message usp_msg.Msg
 

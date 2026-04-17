@@ -15,7 +15,7 @@ func (h *Handler) HandleDeviceInfo(device string, data []byte, ack func()) {
 	deviceInfo := parseDeviceInfoMsg(data)
 	if deviceExists, _ := h.db.DeviceExists(deviceInfo.SN); !deviceExists {
 		fmtDeviceInfo, _ := json.Marshal(deviceInfo)
-		h.nc.Publish("device.v1.new", fmtDeviceInfo)
+		_ = h.nc.Publish("device.v1.new", fmtDeviceInfo)
 	}
 	err := h.db.CreateDevice(deviceInfo)
 	if err != nil {

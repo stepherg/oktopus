@@ -31,7 +31,7 @@ func (h *Handler) deviceOnline(device, mtp string) {
 
 	log.Printf("Device %s is online", device)
 
-	msg := usp.NewGetMsg(usp_msg.Get{
+	msg := usp.NewGetMsg(&usp_msg.Get{
 		ParamPaths: []string{
 			"Device.DeviceInfo.Manufacturer",
 			"Device.DeviceInfo.ModelName",

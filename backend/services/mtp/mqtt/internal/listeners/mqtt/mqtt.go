@@ -3,8 +3,8 @@ package mqtt
 import (
 	"broker/internal/config"
 	"crypto/tls"
-	"io/ioutil"
 	"log"
+	"os"
 
 	rv8 "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
@@ -92,12 +92,12 @@ func createListener(server *mqtt.Server, port string, listenersConf *listeners.C
 
 func defineServerTls(fullchain, privkey string) *listeners.Config {
 	if fullchain != "" && privkey != "" {
-		chain, err := ioutil.ReadFile(fullchain)
+		chain, err := os.ReadFile(fullchain)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		pv, err := ioutil.ReadFile(privkey)
+		pv, err := os.ReadFile(privkey)
 		if err != nil {
 			log.Fatal(err)
 		}

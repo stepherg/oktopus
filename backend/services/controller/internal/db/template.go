@@ -39,7 +39,7 @@ func (d *Database) AllTemplates(filter interface{}) ([]Template, error) {
 
 func (d *Database) AddTemplate(name, tr string, t string) error {
 	opts := options.FindOneAndReplace().SetUpsert(true)
-	err := d.template.FindOneAndReplace(d.ctx, bson.D{{"name", name}}, Template{Name: name, Type: tr, Value: t}, opts).Err()
+	err := d.template.FindOneAndReplace(d.ctx, bson.D{{Key: "name", Value: name}}, Template{Name: name, Type: tr, Value: t}, opts).Err()
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			log.Printf("New message %s added to database", name)
@@ -52,7 +52,7 @@ func (d *Database) AddTemplate(name, tr string, t string) error {
 }
 
 func (d *Database) UpdateTemplate(name, t string) error {
-	result, err := d.template.UpdateOne(d.ctx, bson.D{{"name", name}}, bson.D{{"$set", bson.D{{"value", t}}}})
+	result, err := d.template.UpdateOne(d.ctx, bson.D{{Key: "name", Value: name}}, bson.D{{Key: "$set", Value: bson.D{{Key: "value", Value: t}}}})
 	if err == nil {
 		if result.MatchedCount == 0 {
 			return ErrorTemplateNotExists
@@ -62,7 +62,7 @@ func (d *Database) UpdateTemplate(name, t string) error {
 }
 
 func (d *Database) DeleteTemplate(name string) error {
-	result, err := d.template.DeleteOne(d.ctx, bson.D{{"name", name}})
+	result, err := d.template.DeleteOne(d.ctx, bson.D{{Key: "name", Value: name}})
 	if err == nil {
 		if result.DeletedCount == 0 {
 			return ErrorTemplateNotExists

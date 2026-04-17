@@ -17,13 +17,6 @@ import (
 
 const notifyInboxMaxPerDevice = 128
 
-// notifyEvent is a single Notify message received from an agent, stored as
-// raw JSON so that callers (TaaS, frontend) can decode what they need.
-type notifyEvent struct {
-	DeviceSN string          `json:"device_sn"`
-	Notify   json.RawMessage `json:"notify"`
-}
-
 // notifyInbox is a thread-safe per-device ring-buffer of unsolicited Notify
 // messages received from agents.
 type notifyInbox struct {

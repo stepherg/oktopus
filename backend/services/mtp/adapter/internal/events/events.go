@@ -52,12 +52,12 @@ func StartEventsListener(ctx context.Context, js jetstream.JetStream, uspHandler
 
 				switch msgType {
 				case "status":
-					uspHandler.HandleDeviceStatus(device, msg.Subject(), data, event, func() { msg.Ack() })
+					uspHandler.HandleDeviceStatus(device, msg.Subject(), data, event, func() { _ = msg.Ack() })
 				case "info":
-					uspHandler.HandleDeviceInfo(device, msg.Subject(), data, event, func() { msg.Ack() })
+					uspHandler.HandleDeviceInfo(device, msg.Subject(), data, event, func() { _ = msg.Ack() })
 				default:
 					log.Printf("Unknown message type received, subject: %s", msg.Subject())
-					msg.Ack()
+					_ = msg.Ack()
 				}
 			}
 		}(uspEvent)
@@ -95,12 +95,12 @@ func StartEventsListener(ctx context.Context, js jetstream.JetStream, uspHandler
 
 				switch msgType {
 				case "status":
-					cwmpHandler.HandleDeviceStatus(device, msg.Subject(), data, func() { msg.Ack() })
+					cwmpHandler.HandleDeviceStatus(device, msg.Subject(), data, func() { _ = msg.Ack() })
 				case "info":
-					cwmpHandler.HandleDeviceInfo(device, data, func() { msg.Ack() })
+					cwmpHandler.HandleDeviceInfo(device, data, func() { _ = msg.Ack() })
 				default:
 					log.Printf("Unknown message type received, subject: %s", msg.Subject())
-					msg.Ack()
+					_ = msg.Ack()
 				}
 			}
 		}(cwmpEvent)

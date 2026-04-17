@@ -34,7 +34,6 @@ const (
 
 var (
 	newline  = []byte{'\n'}
-	space    = []byte{' '}
 	upgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -65,11 +64,11 @@ type Client struct {
 func (c *Client) readPump(cEID string) {
 	defer func() {
 		c.hub.unregister <- c
-		c.conn.Close()
+		_ = c.conn.Close()
 	}()
 	//c.conn.SetReadLimit(maxMessageSize)
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	_ = c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	c.conn.SetPongHandler(func(string) error { _ = c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
 		_, data, err := c.conn.ReadMessage()
 		if err != nil {
@@ -109,16 +108,16 @@ func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		c.conn.Close()
+		_ = c.conn.Close()
 	}()
 	for {
 		select {
 		case message, ok := <-c.send:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				// The hub closed the channel.
 				log.Println("The hub closed the channel of", c.eid)
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
 
@@ -126,21 +125,21 @@ func (c *Client) writePump() {
 			if err != nil {
 				return
 			}
-			w.Write(message.data)
+			_, _ = w.Write(message.data)
 
 			// Add queued messages to the current websocket message.
 			n := len(c.send)
 			for i := 0; i < n; i++ {
-				w.Write(newline)
+				_, _ = w.Write(newline)
 				send := <-c.send
-				w.Write(send.data)
+				_, _ = w.Write(send.data)
 			}
 
 			if err := w.Close(); err != nil {
 				return
 			}
 		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
@@ -164,13 +163,13 @@ func ServeController(
 				return
 			}
 			log.Println("Nats kv error:", err)
-			w.Write([]byte("Nats kv error:" + err.Error()))
+			_, _ = w.Write([]byte("Nats kv error:" + err.Error()))
 			return
 		}
 		recv_token := r.URL.Query().Get("token")
 		if recv_token != string(entry.Value()) {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("Unauthorized"))
+			_, _ = w.Write([]byte("Unauthorized"))
 			return
 		}
 	}
@@ -206,7 +205,7 @@ func ServeAgent(
 	if deviceid == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println("Device id not found")
-		w.Write([]byte("Device id not found"))
+		_, _ = w.Write([]byte("Device id not found"))
 		return
 	}
 
@@ -218,7 +217,7 @@ func ServeAgent(
 				return
 			}
 			log.Println("Nats kv error:", err)
-			w.Write([]byte("Nats kv error:" + err.Error()))
+			_, _ = w.Write([]byte("Nats kv error:" + err.Error()))
 			return
 		}
 

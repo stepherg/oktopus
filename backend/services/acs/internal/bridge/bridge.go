@@ -12,7 +12,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
-	"golang.org/x/sys/unix"
 )
 
 type Bridge struct {
@@ -45,7 +44,7 @@ func NewBridge(
 
 func (b *Bridge) StartBridge() {
 
-	b.sub(handler.NATS_CWMP_ADAPTER_SUBJECT_PREFIX+"*.api", func(msg *nats.Msg) {
+	_ = b.sub(handler.NATS_CWMP_ADAPTER_SUBJECT_PREFIX+"*.api", func(msg *nats.Msg) {
 		if b.conf.DebugMode {
 			log.Printf("Received message: %s", string(msg.Data))
 			log.Printf("Subject: %s", msg.Subject)
@@ -100,7 +99,7 @@ func (b *Bridge) StartBridge() {
 
 	})
 
-	b.sub(handler.NATS_CWMP_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
+	_ = b.sub(handler.NATS_CWMP_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
 		log.Printf("Received message on rtt subject")
 		url := "127.0.0.1" + b.conf.Port
 		conn, err := net.Dial("tcp", url)
@@ -108,14 +107,14 @@ func (b *Bridge) StartBridge() {
 			respondMsg(msg.Respond, 500, err.Error())
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
-		info, err := tcpInfo(conn.(*net.TCPConn))
+		rttMicros, err := getRTTMicros(conn.(*net.TCPConn))
 		if err != nil {
 			respondMsg(msg.Respond, 500, err.Error())
 			return
 		}
-		rtt := time.Duration(info.Rtt) * time.Microsecond
+		rtt := time.Duration(rttMicros) * time.Microsecond
 
 		respondMsg(msg.Respond, 200, rtt/1000)
 	})
@@ -129,34 +128,15 @@ func respondMsg(respond func(data []byte) error, code int, msgData any) {
 	})
 	if err != nil {
 		log.Printf("Failed to marshal message: %q", err)
-		respond([]byte(err.Error()))
+		_ = respond([]byte(err.Error()))
 		return
 	}
 
-	respond(msg)
+	_ = respond(msg)
 }
 
 func getDeviceFromSubject(subject string) string {
 	paths := strings.Split(subject, ".")
 	device := paths[len(paths)-2]
 	return device
-}
-
-func tcpInfo(conn *net.TCPConn) (*unix.TCPInfo, error) {
-	raw, err := conn.SyscallConn()
-	if err != nil {
-		return nil, err
-	}
-
-	var info *unix.TCPInfo
-	ctrlErr := raw.Control(func(fd uintptr) {
-		info, err = unix.GetsockoptTCPInfo(int(fd), unix.IPPROTO_TCP, unix.TCP_INFO)
-	})
-	switch {
-	case ctrlErr != nil:
-		return nil, ctrlErr
-	case err != nil:
-		return nil, err
-	}
-	return info, nil
 }

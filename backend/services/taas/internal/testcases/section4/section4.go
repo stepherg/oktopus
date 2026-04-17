@@ -83,7 +83,7 @@ func testCase4_1() testcases.TestCase {
 				// Some agents return 504 for GetSupportedProtocol if not implemented;
 				// fall through to the data-model check.
 				if gspResp == nil || gspResp.StatusCode == http.StatusGatewayTimeout {
-					return testCase4_1_viaDM(ctx, c, target, cfg)
+					return testCase4_1_viaDM(ctx, c, target)
 				}
 				return testcases.Error("GetSupportedProtocol transport error: " + err.Error())
 			}
@@ -103,7 +103,7 @@ func testCase4_1() testcases.TestCase {
 				return testcases.Fail(fmt.Sprintf("USP error on GetSupportedProtocol: %d %s", code, msg))
 			}
 
-			return testCase4_1_viaDM(ctx, c, target, cfg)
+			return testCase4_1_viaDM(ctx, c, target)
 		},
 	}
 }
@@ -111,7 +111,7 @@ func testCase4_1() testcases.TestCase {
 // testCase4_1_viaDM performs the X.509 / TLS check by reading the agent's MTP
 // data model to confirm the TLS configuration is present and the connection is
 // alive (the fact we get a response proves TLS was successfully negotiated).
-func testCase4_1_viaDM(ctx context.Context, c *client.ControllerClient, target testcases.Target, cfg testcases.TestConfig) testcases.Result {
+func testCase4_1_viaDM(ctx context.Context, c *client.ControllerClient, target testcases.Target) testcases.Result {
 	// Read generic MTP info.
 	raw, err := c.Get(ctx, target.DeviceID, target.MTP,
 		s4GetRequest{ParamPaths: []string{"Device.LocalAgent.MTP."}})

@@ -215,7 +215,7 @@ func SetParameterMultiValues(data map[string]string) string {
   <soap:Header/>
   <soap:Body soap:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
     <cwmp:SetParameterValues>
-      <ParameterList soapenc:arrayType="cwmp:ParameterValueStruct[` + string(len(data)) + `]">`
+      <ParameterList soapenc:arrayType="cwmp:ParameterValueStruct[` + strconv.Itoa(len(data)) + `]">`
 
 	for key, value := range data {
 		msg += `<ParameterValueStruct>

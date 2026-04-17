@@ -11,12 +11,16 @@ import (
 	"github.com/leandrofars/oktopus/taas/internal/db"
 	"github.com/leandrofars/oktopus/taas/internal/testcases"
 	"github.com/leandrofars/oktopus/taas/internal/testcases/section1"
+	"github.com/leandrofars/oktopus/taas/internal/testcases/section10"
 	"github.com/leandrofars/oktopus/taas/internal/testcases/section11"
 	"github.com/leandrofars/oktopus/taas/internal/testcases/section2"
 	"github.com/leandrofars/oktopus/taas/internal/testcases/section3"
 	"github.com/leandrofars/oktopus/taas/internal/testcases/section4"
 	"github.com/leandrofars/oktopus/taas/internal/testcases/section6"
 	"github.com/leandrofars/oktopus/taas/internal/testcases/section7"
+	"github.com/leandrofars/oktopus/taas/internal/testcases/section8"
+	"github.com/leandrofars/oktopus/taas/internal/testcases/section9"
+	"github.com/leandrofars/oktopus/taas/internal/testcases/swmod"
 )
 
 func main() {
@@ -34,7 +38,11 @@ func main() {
 	registry.Register(section4.All()...)
 	registry.Register(section6.All()...)
 	registry.Register(section7.All()...)
+	registry.Register(section8.All()...)
+	registry.Register(section9.All()...)
+	registry.Register(section10.All()...)
 	registry.Register(section11.All()...)
+	registry.Register(swmod.All()...)
 
 	a := api.NewApi(c, database, registry)
 	a.StartApi()

@@ -57,7 +57,7 @@ func NewConfig() *Config {
 
 func loadEnvVariables() {
 	if err := godotenv.Load(localEnv); err != nil {
-		godotenv.Load()
+		_ = godotenv.Load()
 	}
 }
 

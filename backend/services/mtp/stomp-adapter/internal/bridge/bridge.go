@@ -12,7 +12,6 @@ import (
 	"github.com/oktopUSP/oktopus/backend/services/mtp/stomp-adapter/internal/config"
 	"github.com/oktopUSP/oktopus/backend/services/mtp/stomp-adapter/internal/stomp"
 	"github.com/oktopUSP/oktopus/backend/services/mtp/stomp-adapter/internal/stomp/frame"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -98,7 +97,7 @@ func (b *Bridge) StartBridge() {
 						device := deviceQueue[len(deviceQueue)-1]
 						status := fmtBody[1]
 						log.Println("Device:", device, "Status:", status)
-						b.Pub(NATS_STOMP_SUBJECT_PREFIX+device+".status", []byte(status))
+						b.Pub(NATS_STOMP_SUBJECT_PREFIX+device+".status", []byte(status)) //nolint:errcheck
 					} else {
 						log.Println("Invalid status message", body)
 					}
@@ -125,7 +124,7 @@ func connectToServer(url string, options []func(*stomp.Conn) error) (*stomp.Conn
 
 func (b *Bridge) subscribe(st *stomp.Conn) {
 
-	b.Sub(NATS_STOMP_ADAPTER_SUBJECT_PREFIX+"*.info", func(msg *nats.Msg) {
+	_ = b.Sub(NATS_STOMP_ADAPTER_SUBJECT_PREFIX+"*.info", func(msg *nats.Msg) {
 
 		log.Printf("Received message on info subject")
 
@@ -162,10 +161,10 @@ func (b *Bridge) subscribe(st *stomp.Conn) {
 		case <-time.After(DEVICE_TIMEOUT_RESPONSE):
 			log.Println("Timeout waiting for device info response")
 		}
-		sub.Unsubscribe()
+		sub.Unsubscribe() //nolint:errcheck
 	})
 
-	b.Sub(NATS_STOMP_ADAPTER_SUBJECT_PREFIX+"*.api", func(msg *nats.Msg) {
+	_ = b.Sub(NATS_STOMP_ADAPTER_SUBJECT_PREFIX+"*.api", func(msg *nats.Msg) {
 
 		log.Printf("Received message on api subject")
 
@@ -201,10 +200,10 @@ func (b *Bridge) subscribe(st *stomp.Conn) {
 		case <-time.After(DEVICE_TIMEOUT_RESPONSE):
 			log.Println("Timeout waiting for device info response")
 		}
-		sub.Unsubscribe()
+		sub.Unsubscribe() //nolint:errcheck
 	})
 
-	b.Sub(NATS_STOMP_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
+	_ = b.Sub(NATS_STOMP_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
 
 		log.Printf("Received message on rtt subject")
 
@@ -213,14 +212,14 @@ func (b *Bridge) subscribe(st *stomp.Conn) {
 			respondMsg(msg.Respond, 500, err.Error())
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
-		info, err := tcpInfo(conn.(*net.TCPConn))
+		rttMicros, err := getRTTMicros(conn.(*net.TCPConn))
 		if err != nil {
 			respondMsg(msg.Respond, 500, err.Error())
 			return
 		}
-		rtt := time.Duration(info.Rtt) * time.Microsecond
+		rtt := time.Duration(rttMicros) * time.Microsecond
 
 		respondMsg(msg.Respond, 200, rtt/1000)
 
@@ -240,23 +239,4 @@ func respondMsg(respond func(data []byte) error, code int, msgData any) {
 	}
 
 	respond([]byte(msg))
-}
-
-func tcpInfo(conn *net.TCPConn) (*unix.TCPInfo, error) {
-	raw, err := conn.SyscallConn()
-	if err != nil {
-		return nil, err
-	}
-
-	var info *unix.TCPInfo
-	ctrlErr := raw.Control(func(fd uintptr) {
-		info, err = unix.GetsockoptTCPInfo(int(fd), unix.IPPROTO_TCP, unix.TCP_INFO)
-	})
-	switch {
-	case ctrlErr != nil:
-		return nil, ctrlErr
-	case err != nil:
-		return nil, err
-	}
-	return info, nil
 }

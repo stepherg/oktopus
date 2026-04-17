@@ -517,6 +517,9 @@ func deleteCases() []testcases.TestCase {
 				if err != nil {
 					return testcases.Error("setup Add failed: " + err.Error())
 				}
+				if ar == nil || len(ar.CreatedObjResults) < 2 {
+					return testcases.Error("setup Add did not create 2 subscriptions: " + string(addRaw.RawBody))
+				}
 				var disabledPath string
 				for _, r := range ar.CreatedObjResults {
 					if r.OperStatus.OperStatus.OperSuccess != nil {
@@ -525,9 +528,6 @@ func deleteCases() []testcases.TestCase {
 							disabledPath = r.OperStatus.OperStatus.OperSuccess.InstantiatedPath
 						}
 					}
-				}
-				if ar == nil || len(ar.CreatedObjResults) < 2 {
-					return testcases.Error("setup Add did not create 2 subscriptions: " + string(addRaw.RawBody))
 				}
 				defer deleteInstantiatedPath(ctx, c, target, disabledPath)
 

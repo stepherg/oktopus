@@ -54,16 +54,16 @@ func NewConfig() Config {
 	/* ------------------------------ define flags ------------------------------ */
 	natsUrl := flag.String("nats_url", lookupEnvOrString("NATS_URL", "nats://localhost:4222"), "url for nats server")
 	natsName := flag.String("nats_name", lookupEnvOrString("NATS_NAME", "ws-adapter"), "name for nats client")
-	natsEnableTls := flag.Bool("nats_enable_tls", lookupEnvOrBool("NATS_ENABLE_TLS", false), "enbale TLS to nats server")
+	natsEnableTls := flag.Bool("nats_enable_tls", lookupEnvOrBool("NATS_ENABLE_TLS"), "enbale TLS to nats server")
 	clientCrt := flag.String("client_crt", lookupEnvOrString("CLIENT_CRT", "cert.pem"), "client certificate file to TLS connection")
 	clientKey := flag.String("client_key", lookupEnvOrString("CLIENT_KEY", "key.pem"), "client key file to TLS connection")
 	serverCA := flag.String("server_ca", lookupEnvOrString("SERVER_CA", "rootCA.pem"), "server CA file to TLS connection")
 	flPort := flag.String("port", lookupEnvOrString("SERVER_PORT", ":8080"), "Server port")
-	flAuth := flag.Bool("auth", lookupEnvOrBool("SERVER_AUTH_ENABLE", false), "Server auth enable/disable")
+	flAuth := flag.Bool("auth", lookupEnvOrBool("SERVER_AUTH_ENABLE"), "Server auth enable/disable")
 	flControllerEid := flag.String("controller-eid", lookupEnvOrString("CONTROLLER_EID", "oktopusController"), "Controller eid")
-	flTls := flag.Bool("tls", lookupEnvOrBool("SERVER_TLS_ENABLE", false), "Enable/disable websockets server tls")
+	flTls := flag.Bool("tls", lookupEnvOrBool("SERVER_TLS_ENABLE"), "Enable/disable websockets server tls")
 	flTlsPort := flag.String("tls_port", lookupEnvOrString("SERVER_TLS_PORT", ":8081"), "Server Port to use if TLS is enabled")
-	flNoTls := flag.Bool("no_tls", lookupEnvOrBool("SERVER_NO_TLS", false), "Disable/enable websockets serevr without tls")
+	flNoTls := flag.Bool("no_tls", lookupEnvOrBool("SERVER_NO_TLS"), "Disable/enable websockets serevr without tls")
 	flFullchain := flag.String("fullchain_path", lookupEnvOrString("FULL_CHAIN_PATH", "cert.pem"), "Fullchain file path")
 	flPrivKey := flag.String("privkey_path", lookupEnvOrString("PRIVATE_KEY_PATH", "key.pem"), "Private key file path")
 	flHelp := flag.Bool("help", false, "Help")
@@ -135,18 +135,7 @@ func lookupEnvOrString(key string, defaultVal string) string {
 	return defaultVal
 }
 
-func lookupEnvOrInt(key string, defaultVal int) int {
-	if val, _ := os.LookupEnv(key); val != "" {
-		v, err := strconv.Atoi(val)
-		if err != nil {
-			log.Fatalf("LookupEnvOrInt[%s]: %v", key, err)
-		}
-		return v
-	}
-	return defaultVal
-}
-
-func lookupEnvOrBool(key string, defaultVal bool) bool {
+func lookupEnvOrBool(key string) bool {
 	if val, _ := os.LookupEnv(key); val != "" {
 		v, err := strconv.ParseBool(val)
 		if err != nil {
@@ -154,7 +143,7 @@ func lookupEnvOrBool(key string, defaultVal bool) bool {
 		}
 		return v
 	}
-	return defaultVal
+	return false
 }
 
 /* -------------------------------------------------------------------------- */

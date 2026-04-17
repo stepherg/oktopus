@@ -3,19 +3,15 @@ package api
 import (
 	"encoding/json"
 	"encoding/xml"
-	"errors"
 	"io"
 	"net/http"
 
 	"github.com/leandrofars/oktopus/internal/bridge"
 	"github.com/leandrofars/oktopus/internal/cwmp"
-	"github.com/leandrofars/oktopus/internal/entity"
 	n "github.com/leandrofars/oktopus/internal/nats"
 	"github.com/leandrofars/oktopus/internal/utils"
 	"github.com/nats-io/nats.go"
 )
-
-var errDeviceModelNotFound = errors.New("device model not found")
 
 func (a *Api) cwmpGenericMsg(w http.ResponseWriter, r *http.Request) {
 
@@ -24,13 +20,13 @@ func (a *Api) cwmpGenericMsg(w http.ResponseWriter, r *http.Request) {
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return
 	}
 
 	if len(payload) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(utils.Marshall("Empty payload"))
+		_, _ = w.Write(utils.Marshall("Empty payload"))
 		return
 	}
 
@@ -39,7 +35,7 @@ func (a *Api) cwmpGenericMsg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 func (a *Api) cwmpGetParameterNamesMsg(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +44,7 @@ func (a *Api) cwmpGetParameterNamesMsg(w http.ResponseWriter, r *http.Request) {
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return
 	}
 
@@ -57,7 +53,7 @@ func (a *Api) cwmpGetParameterNamesMsg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 func (a *Api) cwmpGetParameterAttributesMsg(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +62,7 @@ func (a *Api) cwmpGetParameterAttributesMsg(w http.ResponseWriter, r *http.Reque
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return
 	}
 
@@ -75,7 +71,7 @@ func (a *Api) cwmpGetParameterAttributesMsg(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 func (a *Api) cwmpGetParameterValuesMsg(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +80,7 @@ func (a *Api) cwmpGetParameterValuesMsg(w http.ResponseWriter, r *http.Request) 
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return
 	}
 
@@ -93,7 +89,7 @@ func (a *Api) cwmpGetParameterValuesMsg(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 func (a *Api) cwmpSetParameterValuesMsg(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +98,7 @@ func (a *Api) cwmpSetParameterValuesMsg(w http.ResponseWriter, r *http.Request) 
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return
 	}
 
@@ -111,7 +107,7 @@ func (a *Api) cwmpSetParameterValuesMsg(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 func (a *Api) cwmpAddObjectMsg(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +116,7 @@ func (a *Api) cwmpAddObjectMsg(w http.ResponseWriter, r *http.Request) {
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return
 	}
 
@@ -129,7 +125,7 @@ func (a *Api) cwmpAddObjectMsg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 func (a *Api) cwmpDeleteObjectMsg(w http.ResponseWriter, r *http.Request) {
@@ -138,7 +134,7 @@ func (a *Api) cwmpDeleteObjectMsg(w http.ResponseWriter, r *http.Request) {
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return
 	}
 
@@ -147,7 +143,7 @@ func (a *Api) cwmpDeleteObjectMsg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 func cwmpInteraction[T cwmp.SetParameterValuesResponse | cwmp.SoapEnvelope | cwmp.DeleteObjectResponse | cwmp.GetParameterAttributesResponse | cwmp.GetParameterNamesResponse | cwmp.GetParameterValuesResponse | cwmp.AddObjectResponse](
@@ -171,22 +167,8 @@ func cwmpInteraction[T cwmp.SetParameterValuesResponse | cwmp.SoapEnvelope | cwm
 		err = json.Unmarshal(data, &response)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write(utils.Marshall(err))
+			_, _ = w.Write(utils.Marshall(err))
 		}
 	}
 	return data, response, err
-}
-
-func cwmpGetDeviceModel(device *entity.Device, w http.ResponseWriter) (string, error) {
-	var model string
-	if device.Model != "" {
-		model = device.Model
-	} else if device.ProductClass != "" {
-		model = device.ProductClass
-	} else {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall("Couldn't get device model"))
-		return model, errDeviceModelNotFound
-	}
-	return model, nil
 }

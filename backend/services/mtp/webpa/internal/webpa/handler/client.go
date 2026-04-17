@@ -88,12 +88,12 @@ func NewClient(hub *Hub, eid, source string) *Client {
 func (c *Client) readPump(cEID string) {
 	defer func() {
 		c.hub.unregister <- c
-		c.conn.Close()
+		_ = c.conn.Close()
 	}()
 	c.conn.SetReadLimit(maxMessageSize)
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	_ = c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error {
-		c.conn.SetReadDeadline(time.Now().Add(pongWait))
+		_ = c.conn.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
 	for {
@@ -132,17 +132,17 @@ func (c *Client) writePump() {
 	defer func() {
 		ticker.Stop()
 		close(c.send)
-		c.conn.Close()
+		_ = c.conn.Close()
 	}()
 	for {
 		select {
 		case message, ok := <-c.send:
 			if !ok {
 				log.Printf("Hub closed channel for %v", c.eid)
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			w, err := c.conn.NextWriter(message.msgType)
 			if err != nil {
 				log.Printf("Failed to get writer %v", err)
@@ -166,7 +166,7 @@ func (c *Client) writePump() {
 				return
 			}
 		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				log.Printf("Failed to send ping %v", err)
 				return
@@ -248,7 +248,7 @@ func (c *Client) sendToScytale(ctx context.Context, payload message) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to send to Scytale")
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return nil
 }
 

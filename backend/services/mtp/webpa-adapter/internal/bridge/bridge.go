@@ -19,7 +19,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
-	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -125,7 +124,7 @@ func (b *Bridge) StartBridge(port string, tls bool) {
 							log.Println(err)
 							continue
 						}
-						b.Pub(DEVICE_SUBJECT_PREFIX+device+".api", wsMsg)
+						b.Pub(DEVICE_SUBJECT_PREFIX+device+".api", wsMsg) //nolint:errcheck
 						continue
 					}
 
@@ -141,7 +140,7 @@ func (b *Bridge) subscribe(wc *websocket.Conn) {
 	b.NewDeviceQueue = make(map[string]string)
 	b.NewDevQMutex = &sync.Mutex{}
 
-	b.Sub(NATS_WEBPA_ADAPTER_SUBJECT_PREFIX+"*.info", func(msg *nats.Msg) {
+	_ = b.Sub(NATS_WEBPA_ADAPTER_SUBJECT_PREFIX+"*.info", func(msg *nats.Msg) {
 
 		log.Printf("Received message on info subject")
 
@@ -159,7 +158,7 @@ func (b *Bridge) subscribe(wc *websocket.Conn) {
 		}
 	})
 
-	b.Sub(NATS_WEBPA_ADAPTER_SUBJECT_PREFIX+"*.api", func(msg *nats.Msg) {
+	_ = b.Sub(NATS_WEBPA_ADAPTER_SUBJECT_PREFIX+"*.api", func(msg *nats.Msg) {
 
 		log.Printf("Received message on api subject")
 
@@ -170,7 +169,7 @@ func (b *Bridge) subscribe(wc *websocket.Conn) {
 		}
 	})
 
-	b.Sub(NATS_WEBPA_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
+	_ = b.Sub(NATS_WEBPA_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
 
 		log.Printf("Received message on rtt subject")
 
@@ -179,14 +178,14 @@ func (b *Bridge) subscribe(wc *websocket.Conn) {
 			respondMsg(msg.Respond, 500, err.Error())
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
-		info, err := tcpInfo(conn.(*net.TCPConn))
+		rttMicros, err := getRTTMicros(conn.(*net.TCPConn))
 		if err != nil {
 			respondMsg(msg.Respond, 500, err.Error())
 			return
 		}
-		rtt := time.Duration(info.Rtt) * time.Microsecond
+		rtt := time.Duration(rttMicros) * time.Microsecond
 
 		respondMsg(msg.Respond, 200, rtt/1000)
 
@@ -201,16 +200,16 @@ func respondMsg(respond func(data []byte) error, code int, msgData any) {
 	})
 	if err != nil {
 		log.Printf("Failed to marshal message: %q", err)
-		respond([]byte(err.Error()))
+		_ = respond([]byte(err.Error()))
 		return
 	}
 
-	respond([]byte(msg))
+	_ = respond([]byte(msg))
 }
 
-func (b *Bridge) newDeviceMsgHandler(wc *websocket.Conn, device string, msg []byte) {
+func (b *Bridge) newDeviceMsgHandler(_ *websocket.Conn, device string, msg []byte) {
 	log.Printf("New device %s response", device)
-	b.Pub(NATS_WEBPA_SUBJECT_PREFIX+device+".info", msg)
+	_ = b.Pub(NATS_WEBPA_SUBJECT_PREFIX+device+".info", msg)
 
 	b.NewDevQMutex.Lock()
 	delete(b.NewDeviceQueue, device)
@@ -224,7 +223,7 @@ func (b *Bridge) statusMsgHandler(wsMsg []byte) {
 		log.Println("Websockets Text Message is not about devices status")
 		return
 	}
-	b.Pub(NATS_WEBPA_SUBJECT_PREFIX+deviceStatus.Eid+".status", []byte(deviceStatus.Status))
+	_ = b.Pub(NATS_WEBPA_SUBJECT_PREFIX+deviceStatus.Eid+".status", []byte(deviceStatus.Status))
 }
 
 func (b *Bridge) urlBuild(tls bool, port string) string {
@@ -250,23 +249,4 @@ func (b *Bridge) newDialer() websocket.Dialer {
 			InsecureSkipVerify: b.Ws.SkipTlsVerify,
 		},
 	}
-}
-
-func tcpInfo(conn *net.TCPConn) (*unix.TCPInfo, error) {
-	raw, err := conn.SyscallConn()
-	if err != nil {
-		return nil, err
-	}
-
-	var info *unix.TCPInfo
-	ctrlErr := raw.Control(func(fd uintptr) {
-		info, err = unix.GetsockoptTCPInfo(int(fd), unix.IPPROTO_TCP, unix.TCP_INFO)
-	})
-	switch {
-	case ctrlErr != nil:
-		return nil, ctrlErr
-	case err != nil:
-		return nil, err
-	}
-	return info, nil
 }

@@ -73,7 +73,9 @@ func (a *Api) retrieveDevices(w http.ResponseWriter, r *http.Request) {
 			statusOrder = -1
 		default:
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode("Status order must be 'asc' or 'desc'")
+			if err := json.NewEncoder(w).Encode("Status order must be 'asc' or 'desc'"); err != nil {
+				log.Println(err)
+			}
 			return
 		}
 	} else {
@@ -103,7 +105,9 @@ func (a *Api) retrieveDevices(w http.ResponseWriter, r *http.Request) {
 		page_number, err = strconv.ParseInt(page_n, 10, 64)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode("Page number must be an integer")
+			if err := json.NewEncoder(w).Encode("Page number must be an integer"); err != nil {
+				log.Println(err)
+			}
 			return
 		}
 	}
@@ -114,13 +118,15 @@ func (a *Api) retrieveDevices(w http.ResponseWriter, r *http.Request) {
 
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode("Page size must be an integer")
+			if err := json.NewEncoder(w).Encode("Page size must be an integer"); err != nil {
+				log.Println(err)
+			}
 			return
 		}
 
 		if page_size > PAGE_SIZE_LIMIT {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode("Page size must not exceed " + strconv.Itoa(PAGE_SIZE_LIMIT))
+			json.NewEncoder(w).Encode("Page size must not exceed " + strconv.Itoa(PAGE_SIZE_LIMIT)) //nolint:errcheck
 			return
 		}
 
@@ -155,7 +161,7 @@ func (a *Api) retrieveDevices(w http.ResponseWriter, r *http.Request) {
 		fmtStatus, err := strconv.Atoi(status)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode("Status must be an integer")
+			json.NewEncoder(w).Encode("Status must be an integer") //nolint:errcheck
 			return
 		}
 		filter["status"] = fmtStatus
@@ -368,7 +374,7 @@ func (a *Api) filterOptions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(resp.Code)
-	w.Write(utils.Marshall(resp.Msg))
+	_, _ = w.Write(utils.Marshall(resp.Msg))
 }
 
 func (a *Api) updateTemplate(w http.ResponseWriter, r *http.Request) {
@@ -397,7 +403,7 @@ func (a *Api) updateTemplate(w http.ResponseWriter, r *http.Request) {
 	err = a.db.UpdateTemplate(name, string(payload))
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(err.Error())
+		json.NewEncoder(w).Encode(err.Error()) //nolint:errcheck
 		return
 	}
 
@@ -433,7 +439,7 @@ func (a *Api) addTemplate(w http.ResponseWriter, r *http.Request) {
 		err = a.db.AddTemplate(name, "cwmp", string(payload))
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(err.Error())
+			json.NewEncoder(w).Encode(err.Error()) //nolint:errcheck
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -442,7 +448,7 @@ func (a *Api) addTemplate(w http.ResponseWriter, r *http.Request) {
 		err = a.db.AddTemplate(name, "usp", string(payload))
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(err.Error())
+			json.NewEncoder(w).Encode(err.Error()) //nolint:errcheck
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -465,27 +471,27 @@ func (a *Api) getTemplate(w http.ResponseWriter, r *http.Request) {
 		if msgType == "" {
 			filter = bson.D{}
 		} else {
-			filter = bson.D{{"type", msgType}}
+			filter = bson.D{{Key: "type", Value: msgType}}
 		}
 
 		result, err := a.db.AllTemplates(filter)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode("Error to get all templates: " + err.Error())
+			json.NewEncoder(w).Encode("Error to get all templates: " + err.Error()) //nolint:errcheck
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(result)
+		json.NewEncoder(w).Encode(result) //nolint:errcheck
 		return
 	} else {
-		t, err := a.db.FindTemplate(bson.D{{"name", name}})
+		t, err := a.db.FindTemplate(bson.D{{Key: "name", Value: name}})
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode("error to find message: " + err.Error())
+			json.NewEncoder(w).Encode("error to find message: " + err.Error()) //nolint:errcheck
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(t.Value))
+		_, _ = w.Write([]byte(t.Value))
 		return
 	}
 
@@ -496,13 +502,13 @@ func (a *Api) deleteTemplate(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	if name == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode("needs template name!")
+		json.NewEncoder(w).Encode("needs template name!") //nolint:errcheck
 		return
 	} else {
 		err := a.db.DeleteTemplate(name)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode("error to delete template: " + err.Error())
+			json.NewEncoder(w).Encode("error to delete template: " + err.Error()) //nolint:errcheck
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)

@@ -27,7 +27,7 @@ type User struct {
 var ErrorUserExists = errors.New("User already exists")
 
 func (d *Database) RegisterUser(user User) error {
-	err := d.users.FindOne(d.ctx, bson.D{{"email", user.Email}}).Err()
+	err := d.users.FindOne(d.ctx, bson.D{{Key: "email", Value: user.Email}}).Err()
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			_, err = d.users.InsertOne(d.ctx, user)
@@ -41,7 +41,7 @@ func (d *Database) RegisterUser(user User) error {
 }
 
 func (d *Database) UpdatePassword(user User) error {
-	_, err := d.users.UpdateOne(d.ctx, bson.D{{"email", user.Email}}, bson.D{{"$set", bson.D{{"password", user.Password}}}})
+	_, err := d.users.UpdateOne(d.ctx, bson.D{{Key: "email", Value: user.Email}}, bson.D{{Key: "$set", Value: bson.D{{Key: "password", Value: user.Password}}}})
 	return err
 }
 
@@ -59,12 +59,12 @@ func (d *Database) FindAllUsers() ([]map[string]interface{}, error) {
 
 func (d *Database) FindUser(email string) (User, error) {
 	var result User
-	err := d.users.FindOne(d.ctx, bson.D{{"email", email}}).Decode(&result)
+	err := d.users.FindOne(d.ctx, bson.D{{Key: "email", Value: email}}).Decode(&result)
 	return result, err
 }
 
 func (d *Database) DeleteUser(email string) error {
-	_, err := d.users.DeleteOne(d.ctx, bson.D{{"email", email}})
+	_, err := d.users.DeleteOne(d.ctx, bson.D{{Key: "email", Value: email}})
 	return err
 }
 

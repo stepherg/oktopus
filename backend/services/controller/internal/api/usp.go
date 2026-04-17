@@ -17,12 +17,12 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func sendUspMsg(msg usp_msg.Msg, sn string, w http.ResponseWriter, nc *nats.Conn, mtp, fromID, toID string) error {
+func sendUspMsg(msg *usp_msg.Msg, sn string, w http.ResponseWriter, nc *nats.Conn, mtp, fromID, toID string) error {
 
-	protoMsg, err := proto.Marshal(&msg)
+	protoMsg, err := proto.Marshal(msg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return err
 	}
 
@@ -30,7 +30,7 @@ func sendUspMsg(msg usp_msg.Msg, sn string, w http.ResponseWriter, nc *nats.Conn
 	protoRecord, err := proto.Marshal(&record)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return err
 	}
 
@@ -49,14 +49,14 @@ func sendUspMsg(msg usp_msg.Msg, sn string, w http.ResponseWriter, nc *nats.Conn
 	err = proto.Unmarshal(data, &receivedRecord)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return err
 	}
 	var receivedMsg usp_msg.Msg
 	err = proto.Unmarshal(receivedRecord.GetNoSessionContext().Payload, &receivedMsg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return err
 	}
 
@@ -68,7 +68,7 @@ func sendUspMsg(msg usp_msg.Msg, sn string, w http.ResponseWriter, nc *nats.Conn
 			log.Println("No response body or error")
 			return nil
 		}
-		w.Write(utils.Marshall(errorMsg))
+		_, _ = w.Write(utils.Marshall(errorMsg))
 		return nil
 	}
 
@@ -125,7 +125,7 @@ func (a *Api) deviceGenericMessage(w http.ResponseWriter, r *http.Request) {
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return
 	}
 
@@ -134,12 +134,12 @@ func (a *Api) deviceGenericMessage(w http.ResponseWriter, r *http.Request) {
 	err = protojson.Unmarshal(payload, &msg)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return
 	}
 
 	fromID, toID := uspOverrides(r)
-	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
+	err = sendUspMsg(&msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -163,11 +163,11 @@ func (a *Api) deviceGetMsg(w http.ResponseWriter, r *http.Request) {
 
 	var get usp_msg.Get
 
-	utils.MarshallDecoder(&get, r.Body)
-	msg := usp_utils.NewGetMsg(get)
+	_ = utils.MarshallDecoder(&get, r.Body)
+	msg := usp_utils.NewGetMsg(&get)
 
 	fromID, toID := uspOverrides(r)
-	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
+	err = sendUspMsg(&msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -191,11 +191,11 @@ func (a *Api) deviceGetSupportedParametersMsg(w http.ResponseWriter, r *http.Req
 
 	var getSupportedDM usp_msg.GetSupportedDM
 
-	utils.MarshallDecoder(&getSupportedDM, r.Body)
-	msg := usp_utils.NewGetSupportedParametersMsg(getSupportedDM)
+	_ = utils.MarshallDecoder(&getSupportedDM, r.Body)
+	msg := usp_utils.NewGetSupportedParametersMsg(&getSupportedDM)
 
 	fromID, toID := uspOverrides(r)
-	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
+	err = sendUspMsg(&msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -219,11 +219,11 @@ func (a *Api) deviceOperateMsg(w http.ResponseWriter, r *http.Request) {
 
 	var operate usp_msg.Operate
 
-	utils.MarshallDecoder(&operate, r.Body)
-	msg := usp_utils.NewOperateMsg(operate)
+	_ = utils.MarshallDecoder(&operate, r.Body)
+	msg := usp_utils.NewOperateMsg(&operate)
 
 	fromID, toID := uspOverrides(r)
-	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
+	err = sendUspMsg(&msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -259,10 +259,10 @@ func (a *Api) deviceNotifyMsg(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Notify %s:", notify.String())
 
-	msg := usp_utils.NewNotifyMsg(notify)
+	msg := usp_utils.NewNotifyMsg(&notify)
 
 	fromID, toID := uspOverrides(r)
-	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
+	err = sendUspMsg(&msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -286,11 +286,11 @@ func (a *Api) deviceUpdateMsg(w http.ResponseWriter, r *http.Request) {
 
 	var set usp_msg.Set
 
-	utils.MarshallDecoder(&set, r.Body)
-	msg := usp_utils.NewSetMsg(set)
+	_ = utils.MarshallDecoder(&set, r.Body)
+	msg := usp_utils.NewSetMsg(&set)
 
 	fromID, toID := uspOverrides(r)
-	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
+	err = sendUspMsg(&msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -314,11 +314,11 @@ func (a *Api) deviceGetParameterInstances(w http.ResponseWriter, r *http.Request
 
 	var getInstances usp_msg.GetInstances
 
-	utils.MarshallDecoder(&getInstances, r.Body)
-	msg := usp_utils.NewGetParametersInstancesMsg(getInstances)
+	_ = utils.MarshallDecoder(&getInstances, r.Body)
+	msg := usp_utils.NewGetParametersInstancesMsg(&getInstances)
 
 	fromID, toID := uspOverrides(r)
-	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
+	err = sendUspMsg(&msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -342,11 +342,11 @@ func (a *Api) deviceCreateMsg(w http.ResponseWriter, r *http.Request) {
 
 	var add usp_msg.Add
 
-	utils.MarshallDecoder(&add, r.Body)
-	msg := usp_utils.NewCreateMsg(add)
+	_ = utils.MarshallDecoder(&add, r.Body)
+	msg := usp_utils.NewCreateMsg(&add)
 
 	fromID, toID := uspOverrides(r)
-	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
+	err = sendUspMsg(&msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}
@@ -370,11 +370,11 @@ func (a *Api) deviceDeleteMsg(w http.ResponseWriter, r *http.Request) {
 
 	var del usp_msg.Delete
 
-	utils.MarshallDecoder(&del, r.Body)
-	msg := usp_utils.NewDelMsg(del)
+	_ = utils.MarshallDecoder(&del, r.Body)
+	msg := usp_utils.NewDelMsg(&del)
 
 	fromID, toID := uspOverrides(r)
-	err = sendUspMsg(msg, sn, w, a.nc, mtp, fromID, toID)
+	err = sendUspMsg(&msg, sn, w, a.nc, mtp, fromID, toID)
 	if err != nil {
 		return
 	}

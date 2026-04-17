@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"oktopUSP/backend/services/acs/internal/auth"
@@ -17,10 +17,10 @@ func (h *Handler) CwmpHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("--> Connection from %s", r.RemoteAddr)
 
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	defer log.Printf("<-- Connection from %s closed", r.RemoteAddr)
 
-	tmp, _ := ioutil.ReadAll(r.Body)
+	tmp, _ := io.ReadAll(r.Body)
 	body := string(tmp)
 
 	if h.acsConfig.DebugMode {
@@ -28,7 +28,9 @@ func (h *Handler) CwmpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var envelope cwmp.SoapEnvelope
-	xml.Unmarshal(tmp, &envelope)
+	if err := xml.Unmarshal(tmp, &envelope); err != nil {
+		log.Println("xml unmarshal error:", err)
+	}
 
 	messageType := envelope.Body.CWMPMessage.XMLName.Local
 	log.Println("messageType: ", messageType)
@@ -51,9 +53,12 @@ func (h *Handler) CwmpHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if messageType == "Inform" {
+	switch messageType {
+	case "Inform":
 		var Inform cwmp.CWMPInform
-		xml.Unmarshal(tmp, &Inform)
+		if err := xml.Unmarshal(tmp, &Inform); err != nil {
+			log.Println("xml unmarshal error:", err)
+		}
 
 		var addr string
 		if r.Header.Get("X-Real-Ip") != "" {
@@ -77,7 +82,7 @@ func (h *Handler) CwmpHandler(w http.ResponseWriter, r *http.Request) {
 				Queue:                lane.NewQueue(),
 				DataModel:            Inform.GetDataModelType(),
 			}
-			h.pub(NATS_CWMP_SUBJECT_PREFIX+sn+".info", tmp)
+			h.pub(NATS_CWMP_SUBJECT_PREFIX+sn+".info", tmp) //nolint:errcheck
 		}
 
 		cpe.ConnectionRequestURL = Inform.GetConnectionRequest() // Update connection request URL, in case the CPE changed IP
@@ -89,13 +94,13 @@ func (h *Handler) CwmpHandler(w http.ResponseWriter, r *http.Request) {
 		cookie := http.Cookie{Name: "oktopus", Value: sn, Expires: expiration}
 		http.SetCookie(w, &cookie)
 		//data, _ := xml.Marshal(cwmp.InformResponse(envelope.Header.Id))
-		fmt.Fprintf(w, cwmp.InformResponse(envelope.Header.Id))
+		_, _ = fmt.Fprint(w, cwmp.InformResponse(envelope.Header.Id))
 
-	} else if messageType == "TransferComplete" {
+	case "TransferComplete":
 
-	} else if messageType == "GetRPC" {
+	case "GetRPC":
 
-	} else {
+	default:
 
 		if len(body) == 0 {
 			log.Println("Got Empty Post")
@@ -106,7 +111,9 @@ func (h *Handler) CwmpHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println("ACS was waiting for a response from the CPE, now received something")
 
 			var e cwmp.SoapEnvelope
-			xml.Unmarshal([]byte(body), &e)
+			if err := xml.Unmarshal([]byte(body), &e); err != nil {
+				log.Println("xml unmarshal error:", err)
+			}
 			log.Println("Kind of envelope: ", e.KindOf())
 
 			if e.KindOf() == "GetParameterNamesResponse" {
@@ -139,7 +146,7 @@ func (h *Handler) CwmpHandler(w http.ResponseWriter, r *http.Request) {
 			cpe.Waiting = &req
 			log.Println("Sending request to CPE:", req.Id)
 			w.Header().Set("Connection", "keep-alive")
-			w.Write(req.CwmpMsg)
+			_, _ = w.Write(req.CwmpMsg)
 		} else {
 			w.Header().Set("Connection", "close")
 			w.WriteHeader(204)

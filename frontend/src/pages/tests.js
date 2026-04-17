@@ -36,6 +36,11 @@ const Page = () => {
       },
       body: body ? JSON.stringify(body) : undefined,
     });
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      console.warn(`TaaS: non-JSON response (${res.status}) for ${path}. Check NEXT_PUBLIC_TAAS_ENDPOINT.`);
+      return null;
+    }
     return res.json();
   };
 

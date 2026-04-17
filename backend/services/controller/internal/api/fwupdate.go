@@ -35,9 +35,9 @@ func (a *Api) deviceFwUpdate(w http.ResponseWriter, r *http.Request) {
 
 	var payload fwUpdate
 
-	utils.MarshallDecoder(&payload, r.Body)
+	_ = utils.MarshallDecoder(&payload, r.Body)
 
-	msg := usp_utils.NewGetMsg(usp_msg.Get{
+	msg := usp_utils.NewGetMsg(&usp_msg.Get{
 		ParamPaths: []string{"Device.DeviceInfo.FirmwareImage.*.Status"},
 		MaxDepth:   1,
 	})
@@ -45,7 +45,7 @@ func (a *Api) deviceFwUpdate(w http.ResponseWriter, r *http.Request) {
 	protoMsg, err := proto.Marshal(&msg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return
 	}
 
@@ -53,7 +53,7 @@ func (a *Api) deviceFwUpdate(w http.ResponseWriter, r *http.Request) {
 	protoRecord, err := proto.Marshal(&record)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return
 	}
 
@@ -72,14 +72,14 @@ func (a *Api) deviceFwUpdate(w http.ResponseWriter, r *http.Request) {
 	err = proto.Unmarshal(data, &receivedRecord)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return
 	}
 	var receivedMsg usp_msg.Msg
 	err = proto.Unmarshal(receivedRecord.GetNoSessionContext().Payload, &receivedMsg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall(err.Error()))
+		_, _ = w.Write(utils.Marshall(err.Error()))
 		return
 	}
 
@@ -89,7 +89,7 @@ func (a *Api) deviceFwUpdate(w http.ResponseWriter, r *http.Request) {
 	if partition == "" {
 		log.Println("Error to get device available firmware partition, probably it has only one partition")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode("Server don't have the hability to update device with only one partition")
+		_ = json.NewEncoder(w).Encode("Server don't have the hability to update device with only one partition")
 		return
 		//TODO: update device with only one partition
 	}
@@ -111,8 +111,8 @@ func (a *Api) deviceFwUpdate(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	msg = usp_utils.NewOperateMsg(receiver)
-	err = sendUspMsg(msg, sn, w, a.nc, mtp, "", "")
+	msg = usp_utils.NewOperateMsg(&receiver)
+	_ = sendUspMsg(&msg, sn, w, a.nc, mtp, "", "")
 }
 
 // Check which fw image is activated

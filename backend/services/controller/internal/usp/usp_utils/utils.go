@@ -46,7 +46,7 @@ func NewUspRecordWithOverrides(p []byte, toId, fromIDOverride, toIDOverride stri
 	}
 }
 
-func NewCreateMsg(createStuff usp_msg.Add) usp_msg.Msg {
+func NewCreateMsg(createStuff *usp_msg.Add) usp_msg.Msg {
 	return usp_msg.Msg{
 		Header: &usp_msg.Header{
 			MsgId:   uuid.NewString(),
@@ -56,7 +56,7 @@ func NewCreateMsg(createStuff usp_msg.Add) usp_msg.Msg {
 			MsgBody: &usp_msg.Body_Request{
 				Request: &usp_msg.Request{
 					ReqType: &usp_msg.Request_Add{
-						Add: &createStuff,
+						Add: createStuff,
 					},
 				},
 			},
@@ -64,7 +64,7 @@ func NewCreateMsg(createStuff usp_msg.Add) usp_msg.Msg {
 	}
 }
 
-func NewGetMsg(getStuff usp_msg.Get) usp_msg.Msg {
+func NewGetMsg(getStuff *usp_msg.Get) usp_msg.Msg {
 	return usp_msg.Msg{
 		Header: &usp_msg.Header{
 			MsgId:   uuid.NewString(),
@@ -74,7 +74,7 @@ func NewGetMsg(getStuff usp_msg.Get) usp_msg.Msg {
 			MsgBody: &usp_msg.Body_Request{
 				Request: &usp_msg.Request{
 					ReqType: &usp_msg.Request_Get{
-						Get: &getStuff,
+						Get: getStuff,
 					},
 				},
 			},
@@ -82,7 +82,7 @@ func NewGetMsg(getStuff usp_msg.Get) usp_msg.Msg {
 	}
 }
 
-func NewDelMsg(getStuff usp_msg.Delete) usp_msg.Msg {
+func NewDelMsg(getStuff *usp_msg.Delete) usp_msg.Msg {
 	return usp_msg.Msg{
 		Header: &usp_msg.Header{
 			MsgId:   uuid.NewString(),
@@ -92,7 +92,7 @@ func NewDelMsg(getStuff usp_msg.Delete) usp_msg.Msg {
 			MsgBody: &usp_msg.Body_Request{
 				Request: &usp_msg.Request{
 					ReqType: &usp_msg.Request_Delete{
-						Delete: &getStuff,
+						Delete: getStuff,
 					},
 				},
 			},
@@ -100,7 +100,7 @@ func NewDelMsg(getStuff usp_msg.Delete) usp_msg.Msg {
 	}
 }
 
-func NewSetMsg(updateStuff usp_msg.Set) usp_msg.Msg {
+func NewSetMsg(updateStuff *usp_msg.Set) usp_msg.Msg {
 	return usp_msg.Msg{
 		Header: &usp_msg.Header{
 			MsgId:   uuid.NewString(),
@@ -110,7 +110,7 @@ func NewSetMsg(updateStuff usp_msg.Set) usp_msg.Msg {
 			MsgBody: &usp_msg.Body_Request{
 				Request: &usp_msg.Request{
 					ReqType: &usp_msg.Request_Set{
-						Set: &updateStuff,
+						Set: updateStuff,
 					},
 				},
 			},
@@ -118,7 +118,7 @@ func NewSetMsg(updateStuff usp_msg.Set) usp_msg.Msg {
 	}
 }
 
-func NewGetSupportedParametersMsg(getStuff usp_msg.GetSupportedDM) usp_msg.Msg {
+func NewGetSupportedParametersMsg(getStuff *usp_msg.GetSupportedDM) usp_msg.Msg {
 	return usp_msg.Msg{
 		Header: &usp_msg.Header{
 			MsgId:   uuid.NewString(),
@@ -128,7 +128,7 @@ func NewGetSupportedParametersMsg(getStuff usp_msg.GetSupportedDM) usp_msg.Msg {
 			MsgBody: &usp_msg.Body_Request{
 				Request: &usp_msg.Request{
 					ReqType: &usp_msg.Request_GetSupportedDm{
-						GetSupportedDm: &getStuff,
+						GetSupportedDm: getStuff,
 					},
 				},
 			},
@@ -136,7 +136,7 @@ func NewGetSupportedParametersMsg(getStuff usp_msg.GetSupportedDM) usp_msg.Msg {
 	}
 }
 
-func NewGetParametersInstancesMsg(getStuff usp_msg.GetInstances) usp_msg.Msg {
+func NewGetParametersInstancesMsg(getStuff *usp_msg.GetInstances) usp_msg.Msg {
 	return usp_msg.Msg{
 		Header: &usp_msg.Header{
 			MsgId:   uuid.NewString(),
@@ -146,7 +146,7 @@ func NewGetParametersInstancesMsg(getStuff usp_msg.GetInstances) usp_msg.Msg {
 			MsgBody: &usp_msg.Body_Request{
 				Request: &usp_msg.Request{
 					ReqType: &usp_msg.Request_GetInstances{
-						GetInstances: &getStuff,
+						GetInstances: getStuff,
 					},
 				},
 			},
@@ -154,7 +154,7 @@ func NewGetParametersInstancesMsg(getStuff usp_msg.GetInstances) usp_msg.Msg {
 	}
 }
 
-func NewOperateMsg(getStuff usp_msg.Operate) usp_msg.Msg {
+func NewOperateMsg(getStuff *usp_msg.Operate) usp_msg.Msg {
 	return usp_msg.Msg{
 		Header: &usp_msg.Header{
 			MsgId:   uuid.NewString(),
@@ -164,7 +164,7 @@ func NewOperateMsg(getStuff usp_msg.Operate) usp_msg.Msg {
 			MsgBody: &usp_msg.Body_Request{
 				Request: &usp_msg.Request{
 					ReqType: &usp_msg.Request_Operate{
-						Operate: &getStuff,
+						Operate: getStuff,
 					},
 				},
 			},
@@ -172,7 +172,7 @@ func NewOperateMsg(getStuff usp_msg.Operate) usp_msg.Msg {
 	}
 }
 
-func NewNotifyMsg(notify usp_msg.Notify) usp_msg.Msg {
+func NewNotifyMsg(notify *usp_msg.Notify) usp_msg.Msg {
 	return usp_msg.Msg{
 		Header: &usp_msg.Header{
 			MsgId:   uuid.NewString(),
@@ -182,7 +182,7 @@ func NewNotifyMsg(notify usp_msg.Notify) usp_msg.Msg {
 			MsgBody: &usp_msg.Body_Request{
 				Request: &usp_msg.Request{
 					ReqType: &usp_msg.Request_Notify{
-						Notify: &notify,
+						Notify: notify,
 					},
 				},
 			},

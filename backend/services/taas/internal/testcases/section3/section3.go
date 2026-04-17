@@ -78,25 +78,6 @@ type s3ParamSetting struct {
 	Required bool   `json:"required"`
 }
 
-// getParam retrieves a single parameter value. Returns "", err on failure.
-func getParam(ctx context.Context, c *client.ControllerClient, target testcases.Target, path string) (string, error) {
-	raw, err := c.Get(ctx, target.DeviceID, target.MTP, s3GetRequest{ParamPaths: []string{path}})
-	if err != nil {
-		return "", err
-	}
-	var gr s3GetResp
-	if err := json.Unmarshal(raw.RawBody, &gr); err != nil {
-		return "", fmt.Errorf("decode response: %w", err)
-	}
-	if len(gr.ReqPathResults) > 0 && gr.ReqPathResults[0].ErrCode == 0 &&
-		len(gr.ReqPathResults[0].ResolvedPathResults) > 0 {
-		for _, v := range gr.ReqPathResults[0].ResolvedPathResults[0].ResultParams {
-			return v, nil
-		}
-	}
-	return "", nil
-}
-
 // ---------------------------------------------------------------------------
 // 3.1 – Bad request outside a session context (Mandatory)
 // ---------------------------------------------------------------------------

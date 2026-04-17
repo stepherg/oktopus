@@ -12,7 +12,7 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-var errInvalidMtp = errors.New("Invalid MTP, valid options are: mqtt, ws, stomp")
+var errInvalidMtp = errors.New("invalid MTP, valid options are: mqtt, ws, stomp")
 
 func deviceStateOK(w http.ResponseWriter, nc *nats.Conn, sn string) (string, bool) {
 
@@ -66,7 +66,7 @@ func getMtpFromRequest(r *http.Request, w http.ResponseWriter) (string, error) {
 		return "", nil
 	default:
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(utils.Marshall("Invalid MTP, valid options are: " + entity.Mqtt + ", " + entity.Websockets + ", " + entity.Stomp + ", " + entity.Webpa))
+		_, _ = w.Write(utils.Marshall("Invalid MTP, valid options are: " + entity.Mqtt + ", " + entity.Websockets + ", " + entity.Stomp + ", " + entity.Webpa))
 		return "", errInvalidMtp
 	}
 }
@@ -76,11 +76,11 @@ func isDeviceOnline(w http.ResponseWriter, deviceStatus entity.Status) bool {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		switch deviceStatus {
 		case entity.Offline:
-			w.Write(utils.Marshall("Device is offline"))
+			_, _ = w.Write(utils.Marshall("Device is offline"))
 		case entity.Associating:
-			w.Write(utils.Marshall("Device status is associating"))
+			_, _ = w.Write(utils.Marshall("Device status is associating"))
 		default:
-			w.Write(utils.Marshall("Unknown device status"))
+			_, _ = w.Write(utils.Marshall("Unknown device status"))
 		}
 		return false
 	}
@@ -98,16 +98,6 @@ func getDeviceInfo(w http.ResponseWriter, sn string, nc *nats.Conn) (device *ent
 		return &msg.Msg, err
 	}
 	return nil, err
-}
-
-func getDeviceCount(w http.ResponseWriter, nc *nats.Conn) (int64, error) {
-	msg, err := bridge.NatsReq[int64](
-		local.NATS_ADAPTER_SUBJECT+"devices.count",
-		[]byte(""),
-		w,
-		nc,
-	)
-	return msg.Msg, err
 }
 
 func getDevices(w http.ResponseWriter, filter map[string]interface{}, nc *nats.Conn) (*entity.DevicesList, error) {

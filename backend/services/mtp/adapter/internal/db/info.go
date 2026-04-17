@@ -35,7 +35,7 @@ func (d *Database) RetrieveVendorsInfo() ([]VendorsCount, error) {
 		log.Println(err)
 		return nil, err
 	}
-	defer cursor.Close(d.ctx)
+	defer func() { _ = cursor.Close(d.ctx) }()
 	if err := cursor.All(d.ctx, &results); err != nil {
 		log.Println(err)
 		return nil, err
@@ -60,7 +60,7 @@ func (d *Database) RetrieveStatusInfo() ([]StatusCount, error) {
 		log.Println(err)
 		return nil, err
 	}
-	defer cursor.Close(d.ctx)
+	defer func() { _ = cursor.Close(d.ctx) }()
 	if err := cursor.All(d.ctx, &results); err != nil {
 		log.Println(err)
 		return nil, err
@@ -85,7 +85,7 @@ func (d *Database) RetrieveProductsClassInfo() ([]ProductClassCount, error) {
 		log.Println(err)
 		return nil, err
 	}
-	defer cursor.Close(d.ctx)
+	defer func() { _ = cursor.Close(d.ctx) }()
 	if err := cursor.All(d.ctx, &results); err != nil {
 		log.Println(err)
 		return nil, err

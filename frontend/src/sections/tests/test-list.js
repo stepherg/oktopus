@@ -33,7 +33,11 @@ const SECTION_LABELS = {
   4:  'General MTP',
   6:  'STOMP',
   7:  'WebSocket',
+  8:  'Discovery',
+  9:  'Functionality',
+  10: 'Bulk Data Collection',
   11: 'MQTT',
+  12: 'Software Modules',
 };
 
 const MTP_COLORS = {

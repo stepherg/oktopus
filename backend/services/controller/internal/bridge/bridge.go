@@ -14,8 +14,8 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-var errNatsMsgReceivedWithErrorData = errors.New("Nats message received with error data")
-var errNatsRequestTimeout = errors.New("Nats message response timeout")
+var errNatsMsgReceivedWithErrorData = errors.New("nats message received with error data")
+var errNatsRequestTimeout = errors.New("nats message response timeout")
 
 type Bridge struct {
 	js jetstream.JetStream
@@ -48,7 +48,7 @@ func NatsUspInteraction(
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall("Error to communicate with nats: " + err.Error()))
+		_, _ = w.Write(utils.Marshall("Error to communicate with nats: " + err.Error()))
 		return []byte{}, err
 	}
 	defer sub.Unsubscribe() //nolint:errcheck
@@ -62,7 +62,7 @@ func NatsUspInteraction(
 		case <-time.After(local.NATS_REQUEST_TIMEOUT):
 			log.Println("usp message response timeout")
 			w.WriteHeader(http.StatusGatewayTimeout)
-			w.Write(utils.Marshall("usp message response timeout"))
+			_, _ = w.Write(utils.Marshall("usp message response timeout"))
 			done <- errNatsRequestTimeout
 		}
 	}()
@@ -71,7 +71,7 @@ func NatsUspInteraction(
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall("Error to communicate with nats: " + err.Error()))
+		_, _ = w.Write(utils.Marshall("Error to communicate with nats: " + err.Error()))
 		return nil, err
 	}
 
@@ -95,7 +95,7 @@ func NatsCustomReq[T entity.DataType](
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall("Error to communicate with nats: " + err.Error()))
+		_, _ = w.Write(utils.Marshall("Error to communicate with nats: " + err.Error()))
 		return nil, err
 	}
 	defer sub.Unsubscribe() //nolint:errcheck
@@ -107,7 +107,7 @@ func NatsCustomReq[T entity.DataType](
 		if err != nil {
 			log.Println(err)
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write(msg.Data)
+			_, _ = w.Write(msg.Data)
 			return nil, err
 		}
 		done <- "done"
@@ -120,7 +120,7 @@ func NatsCustomReq[T entity.DataType](
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall("Error to communicate with nats: " + err.Error()))
+		_, _ = w.Write(utils.Marshall("Error to communicate with nats: " + err.Error()))
 		return nil, err
 	}
 
@@ -149,7 +149,7 @@ func NatsReq[T entity.DataType](
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall("Error to communicate with nats: " + err.Error()))
+		_, _ = w.Write(utils.Marshall("Error to communicate with nats: " + err.Error()))
 		return nil, err
 	}
 
@@ -161,13 +161,13 @@ func NatsReq[T entity.DataType](
 		if err != nil {
 			log.Println("Bad answer message formatting: ", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write(msg.Data)
+			_, _ = w.Write(msg.Data)
 			return nil, err
 		}
 
 		log.Printf("message received, msg: %s, code: %d", *errMsg.Msg, errMsg.Code)
 		w.WriteHeader(errMsg.Code)
-		w.Write(utils.Marshall(*errMsg.Msg))
+		_, _ = w.Write(utils.Marshall(*errMsg.Msg))
 		return nil, errNatsMsgReceivedWithErrorData
 	}
 
@@ -222,7 +222,7 @@ func NatsCwmpInteraction(
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall("Error to communicate with nats: " + err.Error()))
+		_, _ = w.Write(utils.Marshall("Error to communicate with nats: " + err.Error()))
 		return nil, err
 	}
 
@@ -235,13 +235,13 @@ func NatsCwmpInteraction(
 		if err != nil {
 			log.Println("Bad answer message formatting: ", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write(msg.Data)
+			_, _ = w.Write(msg.Data)
 			return nil, err
 		}
 
 		log.Printf("Error message received, msg: %s, code: %d", *errMsg.Msg, errMsg.Code)
 		w.WriteHeader(errMsg.Code)
-		w.Write(utils.Marshall(*errMsg.Msg))
+		_, _ = w.Write(utils.Marshall(*errMsg.Msg))
 		return nil, errNatsMsgReceivedWithErrorData
 	}
 
@@ -264,11 +264,11 @@ func NatsEnterpriseInteraction(
 	if err != nil {
 		if err == nats.ErrNoResponders {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write(utils.Marshall("You have no enterprise license, to get one contact: sales@oktopus.app.br"))
+			_, _ = w.Write(utils.Marshall("You have no enterprise license, to get one contact: sales@oktopus.app.br"))
 			return err
 		}
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(utils.Marshall("Error to communicate with nats:" + err.Error()))
+		_, _ = w.Write(utils.Marshall("Error to communicate with nats:" + err.Error()))
 		return err
 	}
 
@@ -281,16 +281,16 @@ func NatsEnterpriseInteraction(
 		if err != nil {
 			log.Println("Bad answer message formatting: ", err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write(msg.Data)
+			_, _ = w.Write(msg.Data)
 			return err
 		}
 
 		log.Printf("Error message received, msg: %s, code: %d", *errMsg.Msg, errMsg.Code)
 		w.WriteHeader(errMsg.Code)
-		w.Write(utils.Marshall(*errMsg.Msg))
+		_, _ = w.Write(utils.Marshall(*errMsg.Msg))
 		return errNatsMsgReceivedWithErrorData
 	}
 
-	w.Write(answer.Msg)
+	_, _ = w.Write(answer.Msg)
 	return nil
 }

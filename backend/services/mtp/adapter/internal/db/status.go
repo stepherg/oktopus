@@ -13,7 +13,7 @@ func (d *Database) UpdateStatus(sn string, status Status, mtp MTP) error {
 
 	d.m.Lock()
 	defer d.m.Unlock()
-	err := d.devices.FindOne(d.ctx, bson.D{{"sn", sn}}, nil).Decode(&result)
+	err := d.devices.FindOne(d.ctx, bson.D{{Key: "sn", Value: sn}}, nil).Decode(&result)
 	if err != nil {
 		log.Println(err)
 	}
@@ -46,16 +46,16 @@ func (d *Database) UpdateStatus(sn string, status Status, mtp MTP) error {
 	*/
 	var globalStatus primitive.E
 	if result.Mqtt == Offline && result.Stomp == Offline && result.Websockets == Offline && result.Cwmp == Offline {
-		globalStatus = primitive.E{"status", Offline}
+		globalStatus = primitive.E{Key: "status", Value: Offline}
 	}
 	if result.Mqtt == Online || result.Stomp == Online || result.Websockets == Online || result.Cwmp == Online {
-		globalStatus = primitive.E{"status", Online}
+		globalStatus = primitive.E{Key: "status", Value: Online}
 	}
 
-	_, err = d.devices.UpdateOne(d.ctx, bson.D{{"sn", sn}}, bson.D{
+	_, err = d.devices.UpdateOne(d.ctx, bson.D{{Key: "sn", Value: sn}}, bson.D{
 		{
-			"$set", bson.D{
-				{mtp.String(), status},
+			Key: "$set", Value: bson.D{
+				{Key: mtp.String(), Value: status},
 				globalStatus,
 			},
 		},

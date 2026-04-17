@@ -33,9 +33,14 @@ const SECTIONS = [
   { id: 2,  label: '§2 USP Record Handling' },
   { id: 3,  label: '§3 USP Record Test Cases' },
   { id: 4,  label: '§4 General MTP' },
+  { id: 5,  label: '§5 CoAP Test Cases (DEPRECATED)', deprecated: true },
   { id: 6,  label: '§6 STOMP' },
   { id: 7,  label: '§7 WebSocket' },
+  { id: 8,  label: '§8 Discovery' },
+  { id: 9,  label: '§9 Functionality' },
+  { id: 10, label: '§10 Bulk Data Collection' },
   { id: 11, label: '§11 MQTT' },
+  { id: 12, label: '§12 Software Modules' },
 ];
 
 const MTP_OPTIONS = ['mqtt', 'ws', 'stomp', 'webpa'];
@@ -261,9 +266,11 @@ export const TestRunner = ({ tests, taasRequest, onRunStarted }) => {
                     <Checkbox
                       checked={selectedSections.includes(s.id)}
                       onChange={() => handleSectionToggle(s.id)}
+                      disabled={s.deprecated}
                     />
                   }
                   label={s.label}
+                  sx={s.deprecated ? { opacity: 0.38 } : undefined}
                 />
               ))}
             </FormGroup>

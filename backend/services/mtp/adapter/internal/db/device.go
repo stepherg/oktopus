@@ -64,7 +64,7 @@ func (d *Database) CreateDevice(device Device) error {
 	defer d.m.Unlock()
 
 	/* ------------------ Do not overwrite status of other mtp ------------------ */
-	err := d.devices.FindOne(d.ctx, bson.D{{"sn", device.SN}}, nil).Decode(&deviceExistent)
+	err := d.devices.FindOne(d.ctx, bson.D{{Key: "sn", Value: device.SN}}, nil).Decode(&deviceExistent)
 	if err == nil {
 		if deviceExistent.Mqtt == Online {
 			device.Mqtt = Online
@@ -98,7 +98,7 @@ func (d *Database) CreateDevice(device Device) error {
 		// transaction.
 		opts := options.FindOneAndReplace().SetUpsert(true)
 
-		err := d.devices.FindOneAndReplace(d.ctx, bson.D{{"sn", device.SN}}, device, opts).Decode(&result)
+		err := d.devices.FindOneAndReplace(d.ctx, bson.D{{Key: "sn", Value: device.SN}}, device, opts).Decode(&result)
 		if err != nil {
 			if err == mongo.ErrNoDocuments {
 				log.Printf("New device %s added to database", device.SN)
@@ -133,7 +133,7 @@ func (d *Database) RetrieveDevices(filter bson.A) (*DevicesList, error) {
 	if cursor.Err() != nil {
 		return nil, cursor.Err()
 	}
-	defer cursor.Close(d.ctx)
+	defer func() { _ = cursor.Close(d.ctx) }()
 	if err := cursor.All(d.ctx, &results); err != nil {
 		log.Println(err)
 		return nil, err
@@ -147,24 +147,24 @@ func (d *Database) RetrieveDevices(filter bson.A) (*DevicesList, error) {
 func (d *Database) RetrieveDeviceFilterOptions() (FilterOptions, error) {
 	filter := bson.A{
 		bson.D{
-			{"$group",
-				bson.D{
-					{"_id", primitive.Null{}},
-					{"vendors", bson.D{{"$addToSet", "$vendor"}}},
-					{"versions", bson.D{{"$addToSet", "$version"}}},
-					{"productClasses", bson.D{{"$addToSet", "$productclass"}}},
-					{"models", bson.D{{"$addToSet", "$model"}}},
+			{Key: "$group",
+				Value: bson.D{
+					{Key: "_id", Value: primitive.Null{}},
+					{Key: "vendors", Value: bson.D{{Key: "$addToSet", Value: "$vendor"}}},
+					{Key: "versions", Value: bson.D{{Key: "$addToSet", Value: "$version"}}},
+					{Key: "productClasses", Value: bson.D{{Key: "$addToSet", Value: "$productclass"}}},
+					{Key: "models", Value: bson.D{{Key: "$addToSet", Value: "$model"}}},
 				},
 			},
 		},
 		bson.D{
-			{"$project",
-				bson.D{
-					{"_id", 0},
-					{"vendors", 1},
-					{"versions", 1},
-					{"productClasses", 1},
-					{"models", 1},
+			{Key: "$project",
+				Value: bson.D{
+					{Key: "_id", Value: 0},
+					{Key: "vendors", Value: 1},
+					{Key: "versions", Value: 1},
+					{Key: "productClasses", Value: 1},
+					{Key: "models", Value: 1},
 				},
 			},
 		},
@@ -176,7 +176,7 @@ func (d *Database) RetrieveDeviceFilterOptions() (FilterOptions, error) {
 		log.Println(err)
 		return FilterOptions{}, err
 	}
-	defer cursor.Close(d.ctx)
+	defer func() { _ = cursor.Close(d.ctx) }()
 
 	if err := cursor.All(d.ctx, &results); err != nil {
 		log.Println(err)
@@ -206,7 +206,7 @@ func (d *Database) DeleteDevices(filter bson.D) (int64, error) {
 
 func (d *Database) RetrieveDevice(sn string) (Device, error) {
 	var result Device
-	err := d.devices.FindOne(d.ctx, bson.D{{"sn", sn}}, nil).Decode(&result)
+	err := d.devices.FindOne(d.ctx, bson.D{{Key: "sn", Value: sn}}, nil).Decode(&result)
 	if err != nil {
 		log.Println(err)
 	}
@@ -223,7 +223,7 @@ func (d *Database) DeleteDevice() {
 }
 
 func (d *Database) SetDeviceAlias(sn string, newAlias string) error {
-	err := d.devices.FindOneAndUpdate(d.ctx, bson.D{{"sn", sn}}, bson.D{{"$set", bson.D{{"alias", newAlias}}}}).Err()
+	err := d.devices.FindOneAndUpdate(d.ctx, bson.D{{Key: "sn", Value: sn}}, bson.D{{Key: "$set", Value: bson.D{{Key: "alias", Value: newAlias}}}}).Err()
 	return err
 }
 

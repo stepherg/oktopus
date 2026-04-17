@@ -329,12 +329,12 @@ func (a *Api) deviceWifi(w http.ResponseWriter, r *http.Request) {
 
 		if device.Mqtt == entity.Online || device.Stomp == entity.Online || device.Websockets == entity.Online || device.Webpa == entity.Online {
 			w.WriteHeader(http.StatusNotImplemented)
-			w.Write(utils.Marshall("This feature is only working with CWMP devices"))
+			_, _ = w.Write(utils.Marshall("This feature is only working with CWMP devices"))
 			return
 		}
 
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(utils.Marshall("Device is Offline"))
+		_, _ = w.Write(utils.Marshall("Device is Offline"))
 	}
 
 	if r.Method == http.MethodPut {
@@ -346,7 +346,7 @@ func (a *Api) deviceWifi(w http.ResponseWriter, r *http.Request) {
 			err := utils.MarshallDecoder(&body, r.Body)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
-				w.Write(utils.Marshall("Couldn't decode received payload, err: " + err.Error()))
+				_, _ = w.Write(utils.Marshall("Couldn't decode received payload, err: " + err.Error()))
 				return
 			}
 
@@ -376,13 +376,13 @@ func (a *Api) deviceWifi(w http.ResponseWriter, r *http.Request) {
 
 			if setParameterValuesResp.Status == cwmp.ALL_OK {
 				log.Printf("All parameters sent to the cpe %s were applied", device.SN)
-				w.Write(utils.Marshall(cwmp.ALL_OK))
+				_, _ = w.Write(utils.Marshall(cwmp.ALL_OK))
 				return
 			}
 
 			if setParameterValuesResp.Status == cwmp.SOME_PENDING {
 				log.Printf("All parameters sent to the cpe %s were committed, but not all of them were applied, maybe you need to wait sometime or have a reboot", device.SN)
-				w.Write(utils.Marshall(cwmp.SOME_PENDING))
+				_, _ = w.Write(utils.Marshall(cwmp.SOME_PENDING))
 				return
 			}
 
@@ -390,12 +390,12 @@ func (a *Api) deviceWifi(w http.ResponseWriter, r *http.Request) {
 
 		if device.Mqtt == entity.Online || device.Stomp == entity.Online || device.Websockets == entity.Online || device.Webpa == entity.Online {
 			w.WriteHeader(http.StatusNotImplemented)
-			w.Write(utils.Marshall("This feature is only working with CWMP devices"))
+			_, _ = w.Write(utils.Marshall("This feature is only working with CWMP devices"))
 			return
 		}
 
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write(utils.Marshall("Device is Offline"))
+		_, _ = w.Write(utils.Marshall("Device is Offline"))
 	}
 
 }

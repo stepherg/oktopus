@@ -16,7 +16,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -91,7 +90,7 @@ func (b *Bridge) StartBridge(serverUrl, clientId string) {
 
 	b.setMqttPassword()
 	if b.Mqtt.Username != "" && b.Mqtt.Password != "" {
-		autopahoClientConfig.SetUsernamePassword(b.Mqtt.Username, []byte(b.Mqtt.Password))
+		autopahoClientConfig.SetUsernamePassword(b.Mqtt.Username, []byte(b.Mqtt.Password)) //nolint:staticcheck
 	}
 
 	log.Println("MQTT client id:", pahoClientConfig.ClientID)
@@ -107,10 +106,10 @@ func (b *Bridge) StartBridge(serverUrl, clientId string) {
 }
 
 func (b *Bridge) natsMessageHandler(cm *autopaho.ConnectionManager) {
-	b.Sub(NATS_MQTT_ADAPTER_SUBJECT_PREFIX+"*.info", func(m *nats.Msg) {
+	_ = b.Sub(NATS_MQTT_ADAPTER_SUBJECT_PREFIX+"*.info", func(m *nats.Msg) {
 
 		log.Printf("Received message on info subject")
-		cm.Publish(b.Ctx, &paho.Publish{
+		_, _ = cm.Publish(b.Ctx, &paho.Publish{
 			QoS:     byte(b.Mqtt.Qos),
 			Topic:   MQTT_TOPIC_PREFIX + "v1/agent/" + getDeviceFromSubject(m.Subject),
 			Payload: m.Data,
@@ -121,10 +120,10 @@ func (b *Bridge) natsMessageHandler(cm *autopaho.ConnectionManager) {
 
 	})
 
-	b.Sub(NATS_MQTT_ADAPTER_SUBJECT_PREFIX+"*.api", func(m *nats.Msg) {
+	_ = b.Sub(NATS_MQTT_ADAPTER_SUBJECT_PREFIX+"*.api", func(m *nats.Msg) {
 
 		log.Printf("Received message on api subject")
-		cm.Publish(b.Ctx, &paho.Publish{
+		_, _ = cm.Publish(b.Ctx, &paho.Publish{
 			QoS:     byte(b.Mqtt.Qos),
 			Topic:   MQTT_TOPIC_PREFIX + "v1/agent/" + getDeviceFromSubject(m.Subject),
 			Payload: m.Data,
@@ -135,7 +134,7 @@ func (b *Bridge) natsMessageHandler(cm *autopaho.ConnectionManager) {
 
 	})
 
-	b.Sub(NATS_MQTT_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
+	_ = b.Sub(NATS_MQTT_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
 
 		log.Printf("Received message on rtt subject")
 		url := strings.Split(b.Mqtt.Url, "://")[1]
@@ -144,14 +143,14 @@ func (b *Bridge) natsMessageHandler(cm *autopaho.ConnectionManager) {
 			respondMsg(msg.Respond, 500, err.Error())
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
-		info, err := tcpInfo(conn.(*net.TCPConn))
+		rttMicros, err := getRTTMicros(conn.(*net.TCPConn))
 		if err != nil {
 			respondMsg(msg.Respond, 500, err.Error())
 			return
 		}
-		rtt := time.Duration(info.Rtt) * time.Microsecond
+		rtt := time.Duration(rttMicros) * time.Microsecond
 
 		respondMsg(msg.Respond, 200, rtt/1000)
 	})
@@ -167,11 +166,11 @@ func (b *Bridge) mqttMessageHandler(status, controller, apiMsg chan *paho.Publis
 	for {
 		select {
 		case d := <-status:
-			b.Pub(NATS_MQTT_SUBJECT_PREFIX+getDeviceFromTopic(d.Topic)+".status", d.Payload)
+			_ = b.Pub(NATS_MQTT_SUBJECT_PREFIX+getDeviceFromTopic(d.Topic)+".status", d.Payload)
 		case c := <-controller:
-			b.Pub(NATS_MQTT_SUBJECT_PREFIX+getDeviceFromTopic(c.Topic)+".info", c.Payload)
+			_ = b.Pub(NATS_MQTT_SUBJECT_PREFIX+getDeviceFromTopic(c.Topic)+".info", c.Payload)
 		case a := <-apiMsg:
-			b.Pub(DEVICE_SUBJECT_PREFIX+getDeviceFromTopic(a.Topic)+".api", a.Payload)
+			_ = b.Pub(DEVICE_SUBJECT_PREFIX+getDeviceFromTopic(a.Topic)+".api", a.Payload)
 		}
 	}
 }
@@ -209,7 +208,7 @@ func subscribe(ctx context.Context, qos int, c *autopaho.ConnectionManager) {
 
 func buildClientConfig(status, controller, apiMsg chan *paho.Publish, id string) *paho.ClientConfig {
 	log.Println("Starting new MQTT client")
-	singleHandler := paho.NewSingleHandlerRouter(func(p *paho.Publish) {
+	singleHandler := paho.NewSingleHandlerRouter(func(p *paho.Publish) { //nolint:staticcheck
 
 		if strings.Contains(p.Topic, "status") {
 			status <- p
@@ -256,30 +255,11 @@ func respondMsg(respond func(data []byte) error, code int, msgData any) {
 	})
 	if err != nil {
 		log.Printf("Failed to marshal message: %q", err)
-		respond([]byte(err.Error()))
+		_ = respond([]byte(err.Error()))
 		return
 	}
 
-	respond([]byte(msg))
-}
-
-func tcpInfo(conn *net.TCPConn) (*unix.TCPInfo, error) {
-	raw, err := conn.SyscallConn()
-	if err != nil {
-		return nil, err
-	}
-
-	var info *unix.TCPInfo
-	ctrlErr := raw.Control(func(fd uintptr) {
-		info, err = unix.GetsockoptTCPInfo(int(fd), unix.IPPROTO_TCP, unix.TCP_INFO)
-	})
-	switch {
-	case ctrlErr != nil:
-		return nil, ctrlErr
-	case err != nil:
-		return nil, err
-	}
-	return info, nil
+	_ = respond([]byte(msg))
 }
 
 func (b *Bridge) setMqttPassword() {

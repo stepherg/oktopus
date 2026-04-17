@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -47,11 +46,12 @@ func Auth(username string, password string, url string) (bool, error) {
 		return false, err
 	}
 
-	defer resp.Body.Close()
-	io.Copy(ioutil.Discard, resp.Body)
+	defer func() { _ = resp.Body.Close() }()
+	_, _ = io.Copy(io.Discard, resp.Body)
 
-	if resp.StatusCode == 401 {
-		var authorization map[string]string = DigestAuthParams(resp)
+	switch resp.StatusCode {
+	case 401:
+		var authorization = DigestAuthParams(resp)
 		realmHeader := authorization["realm"]
 		qopHeader := authorization["qop"]
 		nonceHeader := authorization["nonce"]
@@ -66,13 +66,13 @@ func Auth(username string, password string, url string) (bool, error) {
 		// A1
 		h := md5.New()
 		A1 := fmt.Sprintf("%s:%s:%s", username, realm, password)
-		io.WriteString(h, A1)
+		_, _ = io.WriteString(h, A1)
 		HA1 := fmt.Sprintf("%x", h.Sum(nil))
 
 		// A2
 		h = md5.New()
 		A2 := fmt.Sprintf("GET:%s", uri)
-		io.WriteString(h, A2)
+		_, _ = io.WriteString(h, A2)
 		HA2 := fmt.Sprintf("%x", h.Sum(nil))
 
 		// response
@@ -89,17 +89,17 @@ func Auth(username string, password string, url string) (bool, error) {
 			return false, err
 		}
 
-		io.Copy(ioutil.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, resp.Body)
 		if resp.StatusCode == 401 {
-			return false, fmt.Errorf("Authentication error!")
+			return false, fmt.Errorf("authentication error")
 		}
 
 		return true, err
-	} else if resp.StatusCode == 200 {
+	case 200:
 		return true, err
 	}
 
-	return false, fmt.Errorf("Response status code not expected")
+	return false, fmt.Errorf("response status code not expected")
 }
 
 /*

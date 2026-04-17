@@ -50,7 +50,7 @@ func (a *Api) registerUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//Check if user which is requesting creation has the necessary privileges
-	rUser, err := a.db.FindUser(email)
+	rUser, _ := a.db.FindUser(email)
 	if rUser.Level != db.AdminUser {
 		w.WriteHeader(http.StatusForbidden)
 		return
@@ -78,7 +78,7 @@ func (a *Api) registerUser(w http.ResponseWriter, r *http.Request) {
 	if err := a.db.RegisterUser(user); err != nil {
 		if err == db.ErrorUserExists {
 			w.WriteHeader(http.StatusConflict)
-			w.Write([]byte("User with this email already exists"))
+			_, _ = w.Write([]byte("User with this email already exists"))
 			return
 		}
 		w.WriteHeader(http.StatusInternalServerError)
@@ -115,7 +115,7 @@ func (a *Api) deleteUser(w http.ResponseWriter, r *http.Request) {
 	if rUser.Email == userEmail || (rUser.Level == db.AdminUser) { //Admin can delete any account
 		if err := a.db.DeleteUser(userEmail); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(err)
+			_ = json.NewEncoder(w).Encode(err)
 			return
 		}
 	} else {
@@ -146,7 +146,7 @@ func (a *Api) changePassword(w http.ResponseWriter, r *http.Request) {
 
 	if len(user.Password) < 8 {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Password must be at least 8 characters long"))
+		_, _ = w.Write([]byte("Password must be at least 8 characters long"))
 		return
 	}
 
@@ -206,7 +206,7 @@ func (a *Api) registerAdminUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//Check if user which is requesting creation has the necessary privileges
-	rUser, err := a.db.FindUser(email)
+	rUser, _ := a.db.FindUser(email)
 	if rUser.Level != db.AdminUser {
 		w.WriteHeader(http.StatusForbidden)
 		return
@@ -255,7 +255,7 @@ func (a *Api) adminUserExists(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	adminExits := adminUserExists(users)
-	json.NewEncoder(w).Encode(adminExits)
+	_ = json.NewEncoder(w).Encode(adminExits)
 }
 
 type TokenRequest struct {
@@ -275,14 +275,14 @@ func (a *Api) generateToken(w http.ResponseWriter, r *http.Request) {
 	user, err := a.db.FindUser(tokenReq.Email)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode("Invalid Credentials")
+		_ = json.NewEncoder(w).Encode("Invalid Credentials")
 		return
 	}
 
 	credentialError := user.CheckPassword(tokenReq.Password)
 	if credentialError != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode("Invalid Credentials")
+		_ = json.NewEncoder(w).Encode("Invalid Credentials")
 		return
 	}
 
@@ -293,5 +293,5 @@ func (a *Api) generateToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Add("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(token)
+	_ = json.NewEncoder(w).Encode(token)
 }

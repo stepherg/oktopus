@@ -35,6 +35,8 @@ services:
       - "8080:8080"
       # WebSocket MTP (TLS)
       - "8081:8081"
+      # STOMP MTP
+      - "61613:61613"
       # Controller REST API
       - "8000:8000"
       # TaaS REST API
@@ -42,7 +44,19 @@ services:
       # NATS client port (expose only if external NATS clients are needed)
       # - "4222:4222"
     restart: unless-stopped
+    networks:
+      usp_network:
+        ipv4_address: 172.18.235.220
 
 #volumes:
 #  mongo_data:
 #  nats_data:
+
+networks:
+  usp_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.18.235.0/24
+          gateway: 172.18.235.1

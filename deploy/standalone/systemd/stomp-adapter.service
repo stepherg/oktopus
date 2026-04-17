@@ -1,0 +1,13 @@
+[Unit]
+Description=Oktopus STOMP-to-NATS Adapter
+After=nats.service stomp.service
+Requires=nats.service stomp.service
+
+[Service]
+EnvironmentFile=/etc/oktopus/oktopus.env
+ExecStart=/usr/local/bin/stomp-adapter
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

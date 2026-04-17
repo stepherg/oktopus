@@ -32,6 +32,7 @@ const (
 	DEVICE_SUBJECT_PREFIX             = "device.usp.v1."
 	STOMP_QUEUE_PREFIX                = "oktopus/usp/v1/"
 	STOMP_STATUS_QUEUE                = STOMP_QUEUE_PREFIX + "status"
+	STOMP_CONTROLLER_NOTIFY_DEST      = "controller-notify-dest"
 	DEVICE_TIMEOUT_RESPONSE           = 5 * time.Second
 	USP_CONTENT_TYPE                  = "application/vnd.bbf.usp.msg"
 )
@@ -202,6 +203,37 @@ func (b *Bridge) subscribe(st *stomp.Conn) {
 		}
 		sub.Unsubscribe() //nolint:errcheck
 	})
+
+	// Subscribe to the static notify destination so agent-initiated NOTIFY
+	// messages (e.g. ValueChange) are forwarded to NATS and reach the
+	// controller's notify inbox.
+	notifySub, err := st.Subscribe(STOMP_CONTROLLER_NOTIFY_DEST, stomp.AckAuto)
+	if err != nil {
+		log.Println("cannot subscribe to", STOMP_CONTROLLER_NOTIFY_DEST, err.Error())
+	} else {
+		log.Println("Subscribed to", STOMP_CONTROLLER_NOTIFY_DEST)
+		go func() {
+			for msg := range notifySub.C {
+				if msg == nil {
+					break
+				}
+				// Device ID is the last path segment of reply-to-dest:
+				// e.g. "oktopus/usp/v1/agent/os::D89C8E-..."
+				replyTo := msg.Header.Get("reply-to-dest")
+				parts := strings.Split(replyTo, "/")
+				device := parts[len(parts)-1]
+				if device == "" {
+					log.Printf("notify: empty device from reply-to-dest %q, skipping", replyTo)
+					continue
+				}
+				log.Printf("notify: forwarding NOTIFY from device %s to NATS", device)
+				if err := b.Pub(DEVICE_SUBJECT_PREFIX+device+".api", msg.Body); err != nil {
+					log.Printf("notify: failed to publish to NATS: %v", err)
+				}
+			}
+			log.Println("notify: subscription to", STOMP_CONTROLLER_NOTIFY_DEST, "closed")
+		}()
+	}
 
 	_ = b.Sub(NATS_STOMP_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
 

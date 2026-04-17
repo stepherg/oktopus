@@ -21,6 +21,14 @@ RUN CGO_ENABLED=0 GOOS=linux go build -C mtp/adapter -o /out/adapter ./cmd/adapt
 COPY backend/services/controller ./controller
 RUN CGO_ENABLED=0 GOOS=linux go build -C controller -o /out/controller ./cmd/controller/main.go
 
+# stomp
+COPY backend/services/mtp/stomp ./mtp/stomp
+RUN CGO_ENABLED=0 GOOS=linux go build -C mtp/stomp -o /out/stomp ./cmd/stomp/main.go
+
+# stomp-adapter
+COPY backend/services/mtp/stomp-adapter ./mtp/stomp-adapter
+RUN CGO_ENABLED=0 GOOS=linux go build -C mtp/stomp-adapter -o /out/stomp-adapter ./cmd/stomp-adapter/main.go
+
 # taas
 COPY backend/services/taas ./taas
 RUN CGO_ENABLED=0 GOOS=linux go build -C taas -o /out/taas ./cmd/taas/main.go
@@ -84,11 +92,13 @@ RUN systemctl mask \
 # ---------------------------------------------------------------------------
 # Copy built Go binaries
 # ---------------------------------------------------------------------------
-COPY --from=builder /out/ws          /usr/local/bin/ws
-COPY --from=builder /out/ws-adapter  /usr/local/bin/ws-adapter
-COPY --from=builder /out/adapter     /usr/local/bin/adapter
-COPY --from=builder /out/controller  /usr/local/bin/controller
-COPY --from=builder /out/taas        /usr/local/bin/taas
+COPY --from=builder /out/ws            /usr/local/bin/ws
+COPY --from=builder /out/ws-adapter    /usr/local/bin/ws-adapter
+COPY --from=builder /out/stomp         /usr/local/bin/stomp
+COPY --from=builder /out/stomp-adapter /usr/local/bin/stomp-adapter
+COPY --from=builder /out/adapter       /usr/local/bin/adapter
+COPY --from=builder /out/controller    /usr/local/bin/controller
+COPY --from=builder /out/taas          /usr/local/bin/taas
 
 # ---------------------------------------------------------------------------
 # Copy Next.js frontend
@@ -116,15 +126,17 @@ COPY deploy/standalone/nats.cfg /etc/nats/
 # ---------------------------------------------------------------------------
 # systemd unit files
 # ---------------------------------------------------------------------------
-COPY deploy/standalone/systemd/nats.service         /lib/systemd/system/nats.service
-COPY deploy/standalone/systemd/mongod.service       /lib/systemd/system/mongod.service
-COPY deploy/standalone/systemd/ws.service           /lib/systemd/system/ws.service
-COPY deploy/standalone/systemd/ws-adapter.service   /lib/systemd/system/ws-adapter.service
-COPY deploy/standalone/systemd/adapter.service      /lib/systemd/system/adapter.service
-COPY deploy/standalone/systemd/controller.service   /lib/systemd/system/controller.service
-COPY deploy/standalone/systemd/taas.service         /lib/systemd/system/taas.service
-COPY deploy/standalone/systemd/frontend.service     /lib/systemd/system/frontend.service
-COPY deploy/standalone/systemd/admin-seed.service   /lib/systemd/system/admin-seed.service
+COPY deploy/standalone/systemd/nats.service           /lib/systemd/system/nats.service
+COPY deploy/standalone/systemd/mongod.service         /lib/systemd/system/mongod.service
+COPY deploy/standalone/systemd/ws.service             /lib/systemd/system/ws.service
+COPY deploy/standalone/systemd/ws-adapter.service     /lib/systemd/system/ws-adapter.service
+COPY deploy/standalone/systemd/stomp.service          /lib/systemd/system/stomp.service
+COPY deploy/standalone/systemd/stomp-adapter.service  /lib/systemd/system/stomp-adapter.service
+COPY deploy/standalone/systemd/adapter.service        /lib/systemd/system/adapter.service
+COPY deploy/standalone/systemd/controller.service     /lib/systemd/system/controller.service
+COPY deploy/standalone/systemd/taas.service           /lib/systemd/system/taas.service
+COPY deploy/standalone/systemd/frontend.service       /lib/systemd/system/frontend.service
+COPY deploy/standalone/systemd/admin-seed.service     /lib/systemd/system/admin-seed.service
 
 # ---------------------------------------------------------------------------
 # Environment file (override at runtime with -v or --env-file)
@@ -138,6 +150,8 @@ RUN systemctl enable \
         nats.service \
         ws.service \
         ws-adapter.service \
+        stomp.service \
+        stomp-adapter.service \
         adapter.service \
         controller.service \
         taas.service \
@@ -152,6 +166,6 @@ RUN systemctl enable \
 #   8081  – WebSocket MTP (TLS)
 #   8000  – Controller REST API (also via nginx /api)
 #   8001  – TaaS REST API (also via nginx /api/taas)
-EXPOSE 80 4222 8080 8081 8000 8001
+EXPOSE 80 4222 8080 8081 8000 8001 61613
 
 CMD ["/sbin/init"]

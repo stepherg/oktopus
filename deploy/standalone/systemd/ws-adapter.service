@@ -1,0 +1,13 @@
+[Unit]
+Description=Oktopus WebSocket-to-NATS Adapter
+After=nats.service ws.service
+Requires=nats.service ws.service
+
+[Service]
+EnvironmentFile=/etc/oktopus/oktopus.env
+ExecStart=/usr/local/bin/ws-adapter
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

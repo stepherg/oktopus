@@ -1,0 +1,20 @@
+[Unit]
+Description=Seed default admin account (runs once after controller is ready)
+After=controller.service
+Requires=controller.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/oktopus/oktopus.env
+# Wait up to 30 s for the controller API to become reachable, then POST.
+# The endpoint returns 403 if an admin already exists, so re-running is safe.
+ExecStart=/bin/bash -c '\
+   sleep 5; \
+   curl -X POST http://localhost:8000/api/auth/admin/register \
+  -H "Content-Type: application/json" \
+  -d \'{"email":"demo@gmail.com","name":"Demo","password":"standalone"}\''
+
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

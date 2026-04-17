@@ -1,0 +1,13 @@
+[Unit]
+Description=Oktopus Test-as-a-Service (TaaS)
+After=nats.service mongod.service controller.service
+Requires=nats.service mongod.service
+
+[Service]
+EnvironmentFile=/etc/oktopus/oktopus.env
+ExecStart=/usr/local/bin/taas
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

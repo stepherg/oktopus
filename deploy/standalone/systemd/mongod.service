@@ -1,0 +1,12 @@
+[Unit]
+Description=MongoDB
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/mongod --config /etc/mongod.conf
+Restart=on-failure
+RestartSec=3
+StateDirectory=mongodb
+
+[Install]
+WantedBy=multi-user.target

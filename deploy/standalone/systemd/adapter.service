@@ -1,0 +1,13 @@
+[Unit]
+Description=Oktopus USP Adapter
+After=nats.service mongod.service
+Requires=nats.service mongod.service
+
+[Service]
+EnvironmentFile=/etc/oktopus/oktopus.env
+ExecStart=/usr/local/bin/adapter
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

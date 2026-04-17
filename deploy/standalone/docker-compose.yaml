@@ -1,0 +1,48 @@
+# docker-compose.yaml for the Oktopus standalone image.
+#
+# The standalone image bundles NATS, MongoDB, and all five Go services
+# (ws, ws-adapter, adapter, controller, taas) and runs them under systemd
+# in a single container.
+#
+# Build the image first:
+#   docker build -f deploy/standalone/Dockerfile -t oktopusp/standalone:latest .
+#
+# Then start the stack:
+#   docker compose -f deploy/standalone/docker-compose.yaml up -d
+#
+# systemd inside Docker requires the privileged flags below; they are mandatory.
+
+services:
+  oktopus:
+    image: "oktopusp/standalone:latest"
+    container_name: oktopus
+    hostname: oktopus
+    # Required for systemd inside a container
+    privileged: true
+    # volumes:
+      # Persist MongoDB data across restarts
+      # - mongo_data:/var/lib/mongodb
+      # Persist NATS JetStream data
+      # - nats_data:/var/lib/nats/jetstream
+      # Optional: mount custom env to override defaults
+      # - ./oktopus.env:/etc/oktopus/oktopus.env:ro
+      # Optional: mount your own NATS TLS certs
+      # - ./nats_config:/etc/nats:ro
+    ports:
+      # nginx reverse proxy (frontend + API)
+      - "80:80"
+      # WebSocket MTP (plain)
+      - "8080:8080"
+      # WebSocket MTP (TLS)
+      - "8081:8081"
+      # Controller REST API
+      - "8000:8000"
+      # TaaS REST API
+      - "8001:8001"
+      # NATS client port (expose only if external NATS clients are needed)
+      # - "4222:4222"
+    restart: unless-stopped
+
+#volumes:
+#  mongo_data:
+#  nats_data:

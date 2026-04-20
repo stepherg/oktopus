@@ -37,6 +37,10 @@ services:
       - "8081:8081"
       # STOMP MTP
       - "61613:61613"
+      # MQTT MTP (plain)
+      - "1883:1883"
+      # MQTT MTP (TLS)
+      - "8883:8883"
       # Controller REST API
       - "8000:8000"
       # TaaS REST API

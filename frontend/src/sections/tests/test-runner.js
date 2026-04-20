@@ -73,7 +73,9 @@ export const TestRunner = ({ tests, taasRequest, onRunStarted }) => {
   const [connectedDevices, setConnectedDevices] = useState([]);
   const [loadingDevices, setLoadingDevices] = useState(false);
   const [mtp, setMtp] = useState('mqtt');
-  const [controllerUrl, setControllerUrl] = useState('http://controller:8000');
+  const [controllerUrl, setControllerUrl] = useState(
+    process.env.NEXT_PUBLIC_CONTROLLER_URL || 'http://controller:8000'
+  );
   const [runName, setRunName] = useState('');
   const [selectedSections, setSelectedSections] = useState([]);
   const [selectedTestIds, setSelectedTestIds] = useState([]);

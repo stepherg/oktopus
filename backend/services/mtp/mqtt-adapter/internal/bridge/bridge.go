@@ -168,7 +168,13 @@ func (b *Bridge) mqttMessageHandler(status, controller, apiMsg chan *paho.Publis
 		case d := <-status:
 			_ = b.Pub(NATS_MQTT_SUBJECT_PREFIX+getDeviceFromTopic(d.Topic)+".status", d.Payload)
 		case c := <-controller:
-			_ = b.Pub(NATS_MQTT_SUBJECT_PREFIX+getDeviceFromTopic(c.Topic)+".info", c.Payload)
+			device := getDeviceFromTopic(c.Topic)
+			// Publish to the info subject so the controller's info request gets its response.
+			_ = b.Pub(NATS_MQTT_SUBJECT_PREFIX+device+".info", c.Payload)
+			// Also publish to the api subject so that agent-initiated Notify messages
+			// (e.g. ValueChange) reach the controller's notify inbox.  Non-Notify
+			// messages (GET_RESP etc.) are filtered out by the notify inbox itself.
+			_ = b.Pub(DEVICE_SUBJECT_PREFIX+device+".api", c.Payload)
 		case a := <-apiMsg:
 			_ = b.Pub(DEVICE_SUBJECT_PREFIX+getDeviceFromTopic(a.Topic)+".api", a.Payload)
 		}

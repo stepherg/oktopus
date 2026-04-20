@@ -5,14 +5,22 @@ Requires=controller.service
 
 [Service]
 Type=oneshot
-EnvironmentFile=/etc/oktopus/oktopus.env
-# Wait up to 30 s for the controller API to become reachable, then POST.
-# The endpoint returns 403 if an admin already exists, so re-running is safe.
+# Retry until the controller API accepts the registration (or reports that an
+# admin already exists – HTTP 403).  Any other failure (connection refused,
+# 5xx, etc.) causes a 2-second sleep before the next attempt.
 ExecStart=/bin/bash -c '\
-   sleep 5; \
-   curl -X POST http://localhost:8000/api/auth/admin/register \
-  -H "Content-Type: application/json" \
-  -d \'{"email":"demo@gmail.com","name":"Demo","password":"standalone"}\''
+  while true; do \
+    status=$(curl -s -o /dev/null -w "%{http_code}" \
+      -X POST http://localhost:8000/api/auth/admin/register \
+      -H "Content-Type: application/json" \
+      -d "{\"email\":\"demo@gmail.com\",\"name\":\"Demo\",\"password\":\"standalone\"}"); \
+    if [ "$status" = "200" ] || [ "$status" = "201" ] || [ "$status" = "403" ]; then \
+      echo "admin-seed: done (HTTP $status)"; \
+      break; \
+    fi; \
+    echo "admin-seed: got HTTP $status, retrying in 2s..."; \
+    sleep 2; \
+  done'
 
 RemainAfterExit=yes
 

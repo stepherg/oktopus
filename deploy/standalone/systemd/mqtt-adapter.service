@@ -1,0 +1,13 @@
+[Unit]
+Description=Oktopus MQTT-to-NATS Adapter
+After=nats.service mqtt.service
+Requires=nats.service mqtt.service
+
+[Service]
+EnvironmentFile=/etc/oktopus/oktopus.env
+ExecStart=/usr/local/bin/mqtt-adapter
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

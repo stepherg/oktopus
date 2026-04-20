@@ -29,6 +29,14 @@ RUN CGO_ENABLED=0 GOOS=linux go build -C mtp/stomp -o /out/stomp ./cmd/stomp/mai
 COPY backend/services/mtp/stomp-adapter ./mtp/stomp-adapter
 RUN CGO_ENABLED=0 GOOS=linux go build -C mtp/stomp-adapter -o /out/stomp-adapter ./cmd/stomp-adapter/main.go
 
+# mqtt
+COPY backend/services/mtp/mqtt ./mtp/mqtt
+RUN CGO_ENABLED=0 GOOS=linux go build -C mtp/mqtt -o /out/mqtt ./cmd/mqtt/main.go
+
+# mqtt-adapter
+COPY backend/services/mtp/mqtt-adapter ./mtp/mqtt-adapter
+RUN CGO_ENABLED=0 GOOS=linux go build -C mtp/mqtt-adapter -o /out/mqtt-adapter ./cmd/mqtt-adapter/main.go
+
 # taas
 COPY backend/services/taas ./taas
 RUN CGO_ENABLED=0 GOOS=linux go build -C taas -o /out/taas ./cmd/taas/main.go
@@ -42,6 +50,8 @@ COPY frontend/ ./
 # Remove local env overrides if present
 RUN rm -f .env .env.local
 RUN npm install
+# Set controller URL to localhost for the standalone (single-container) image.
+ENV NEXT_PUBLIC_CONTROLLER_URL=http://localhost:8000
 RUN npm run build
 
 # ---------------------------------------------------------------------------
@@ -96,6 +106,8 @@ COPY --from=builder /out/ws            /usr/local/bin/ws
 COPY --from=builder /out/ws-adapter    /usr/local/bin/ws-adapter
 COPY --from=builder /out/stomp         /usr/local/bin/stomp
 COPY --from=builder /out/stomp-adapter /usr/local/bin/stomp-adapter
+COPY --from=builder /out/mqtt          /usr/local/bin/mqtt
+COPY --from=builder /out/mqtt-adapter  /usr/local/bin/mqtt-adapter
 COPY --from=builder /out/adapter       /usr/local/bin/adapter
 COPY --from=builder /out/controller    /usr/local/bin/controller
 COPY --from=builder /out/taas          /usr/local/bin/taas
@@ -132,6 +144,8 @@ COPY deploy/standalone/systemd/ws.service             /lib/systemd/system/ws.ser
 COPY deploy/standalone/systemd/ws-adapter.service     /lib/systemd/system/ws-adapter.service
 COPY deploy/standalone/systemd/stomp.service          /lib/systemd/system/stomp.service
 COPY deploy/standalone/systemd/stomp-adapter.service  /lib/systemd/system/stomp-adapter.service
+COPY deploy/standalone/systemd/mqtt.service           /lib/systemd/system/mqtt.service
+COPY deploy/standalone/systemd/mqtt-adapter.service   /lib/systemd/system/mqtt-adapter.service
 COPY deploy/standalone/systemd/adapter.service        /lib/systemd/system/adapter.service
 COPY deploy/standalone/systemd/controller.service     /lib/systemd/system/controller.service
 COPY deploy/standalone/systemd/taas.service           /lib/systemd/system/taas.service
@@ -152,6 +166,8 @@ RUN systemctl enable \
         ws-adapter.service \
         stomp.service \
         stomp-adapter.service \
+        mqtt.service \
+        mqtt-adapter.service \
         adapter.service \
         controller.service \
         taas.service \
@@ -166,6 +182,6 @@ RUN systemctl enable \
 #   8081  – WebSocket MTP (TLS)
 #   8000  – Controller REST API (also via nginx /api)
 #   8001  – TaaS REST API (also via nginx /api/taas)
-EXPOSE 80 4222 8080 8081 8000 8001 61613
+EXPOSE 80 4222 8080 8081 8000 8001 61613 1883 8883
 
 CMD ["/sbin/init"]

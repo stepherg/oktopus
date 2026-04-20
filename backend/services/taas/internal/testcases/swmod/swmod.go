@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	defaultDUURL   = "http://gdcs-org.github.io/packages/bundles/usp-greeter-python_bundle.tar.gz"
+	defaultDUURL   = "http://gdcs-org.github.io/bundles/usp-greeter-python_bundle.tar.gz"
 	installTimeout = 3 * time.Minute
 )
 

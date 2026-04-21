@@ -56,6 +56,7 @@ type Bridge struct {
 	Ws              config.Ws
 	NewDeviceQueue  map[string]string
 	NewDevQMutex    *sync.Mutex
+	wsWriteMu       sync.Mutex
 	kv              jetstream.KeyValue
 	presence        jetstream.KeyValue
 	presenceMu      sync.Mutex
@@ -70,6 +71,8 @@ func NewBridge(p Publisher, s Subscriber, ctx context.Context, w config.Ws, kv j
 		Pub:             p,
 		Sub:             s,
 		Ws:              w,
+		NewDeviceQueue:  make(map[string]string),
+		NewDevQMutex:    &sync.Mutex{},
 		Ctx:             ctx,
 		kv:              kv,
 		presence:        presence,
@@ -122,7 +125,7 @@ func (b *Bridge) StartBridge(port string, tls bool) {
 						NoSessionContext: &usp_record.NoSessionContextRecord{},
 					}
 					if reflect.TypeOf(record.RecordType) == reflect.TypeOf(noSessionRecord) {
-						if _, ok := b.NewDeviceQueue[device]; ok {
+						if b.isNewDeviceQueued(device) {
 							b.newDeviceMsgHandler(wc, device, wsMsg)
 							continue
 						}
@@ -171,8 +174,9 @@ func (b *Bridge) subscribe(wc *websocket.Conn) {
 		b.subsMu.Unlock()
 	}
 
+	b.NewDevQMutex.Lock()
 	b.NewDeviceQueue = make(map[string]string)
-	b.NewDevQMutex = &sync.Mutex{}
+	b.NewDevQMutex.Unlock()
 
 	addSub(NATS_WS_ADAPTER_SUBJECT_PREFIX+"*.info", func(msg *nats.Msg) {
 
@@ -185,7 +189,7 @@ func (b *Bridge) subscribe(wc *websocket.Conn) {
 		b.NewDeviceQueue[device] = ""
 		b.NewDevQMutex.Unlock()
 
-		err := wc.WriteMessage(websocket.BinaryMessage, msg.Data)
+		err := b.writeWSMessage(wc, websocket.BinaryMessage, msg.Data)
 		if err != nil {
 			log.Printf("send websocket msg error: %q", err)
 			return
@@ -196,7 +200,7 @@ func (b *Bridge) subscribe(wc *websocket.Conn) {
 
 		log.Printf("Received message on api subject")
 
-		err := wc.WriteMessage(websocket.BinaryMessage, msg.Data)
+		err := b.writeWSMessage(wc, websocket.BinaryMessage, msg.Data)
 		if err != nil {
 			log.Printf("send websocket msg error: %q", err)
 			return
@@ -266,6 +270,21 @@ func (b *Bridge) newDeviceMsgHandler(_ *websocket.Conn, device string, msg []byt
 	b.NewDevQMutex.Lock()
 	delete(b.NewDeviceQueue, device)
 	b.NewDevQMutex.Unlock()
+}
+
+func (b *Bridge) isNewDeviceQueued(device string) bool {
+	b.NewDevQMutex.Lock()
+	defer b.NewDevQMutex.Unlock()
+
+	_, ok := b.NewDeviceQueue[device]
+	return ok
+}
+
+func (b *Bridge) writeWSMessage(wc *websocket.Conn, msgType int, data []byte) error {
+	b.wsWriteMu.Lock()
+	defer b.wsWriteMu.Unlock()
+
+	return wc.WriteMessage(msgType, data)
 }
 
 func (b *Bridge) statusMsgHandler(wsMsg []byte) {

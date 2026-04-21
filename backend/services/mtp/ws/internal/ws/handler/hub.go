@@ -32,6 +32,9 @@ type Hub struct {
 
 	// Unregister requests from clients.
 	unregister chan *Client
+
+	// Shutdown requests for gracefully closing active websocket clients.
+	shutdown chan chan struct{}
 }
 
 const (
@@ -54,7 +57,7 @@ func InitHandlers(eid string) {
 	ceid = eid
 	log.Println("New hub, Controller eid:", ceid)
 	hub = newHub()
-	hub.run()
+	go hub.run()
 }
 
 func newHub() *Hub {
@@ -62,6 +65,7 @@ func newHub() *Hub {
 		broadcast:  make(chan message),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
+		shutdown:   make(chan chan struct{}),
 		clients:    make(map[string]*Client),
 	}
 }
@@ -169,6 +173,23 @@ func (h *Hub) run() {
 			} else {
 				log.Printf("Message receiver not found: %s", message.eid)
 			}
+		case done := <-h.shutdown:
+			for eid, client := range h.clients {
+				close(client.send)
+				delete(h.clients, eid)
+			}
+			close(done)
+			return
 		}
 	}
+}
+
+func Shutdown() {
+	if hub == nil {
+		return
+	}
+
+	done := make(chan struct{})
+	hub.shutdown <- done
+	<-done
 }

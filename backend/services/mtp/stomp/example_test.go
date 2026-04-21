@@ -9,26 +9,20 @@ import (
 	"github.com/go-stomp/stomp/v3/frame"
 )
 
-func ExampleConn_Send(c *stomp.Conn) error {
+func ExampleConn_Send() {
+	// This is a demonstration example. In real usage, obtain a *stomp.Conn as needed.
+	var c *stomp.Conn
 	// send with receipt and an optional header
-	err := c.Send(
+	_ = c.Send(
 		"/queue/test-1",            // destination
 		"text/plain",               // content-type
 		[]byte("Message number 1"), // body
 		stomp.SendOpt.Receipt,
 		stomp.SendOpt.Header("expires", "2049-12-31 23:59:59"))
-	if err != nil {
-		return err
-	}
 
 	// send with no receipt and no optional headers
-	err = c.Send("/queue/test-2", "application/xml",
+	_ = c.Send("/queue/test-2", "application/xml",
 		[]byte("<message>hello</message>"))
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // Creates a new Header.

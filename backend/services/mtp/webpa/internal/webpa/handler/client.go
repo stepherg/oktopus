@@ -131,7 +131,6 @@ func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		close(c.send)
 		_ = c.conn.Close()
 	}()
 	for {
@@ -224,23 +223,25 @@ func (c *Client) sendToScytale(ctx context.Context, payload message) error {
 	if err := json.NewEncoder(buf).Encode(wrpRequest); err != nil {
 		return errors.Wrap(err, "failed to encode WRP request")
 	}
-	postReq, err := http.NewRequestWithContext(ctx, "POST", conf.ScytaleUrl, buf)
-	if err != nil {
-		return errors.Wrap(err, "failed to create request")
-	}
-	postReq.Header.Set("Content-Type", wrp.MimeTypeJson)
-	postReq.Header.Set("Accept", wrp.MimeTypeJson)
-	postReq.Header.Set("Authorization", conf.AuthHeader)
+	payloadBytes := append([]byte(nil), buf.Bytes()...)
 	b := backoff.NewExponentialBackOff()
 	b.MaxElapsedTime = 30 * time.Second
 	var resp *http.Response
-	err = backoff.Retry(func() error {
-		var err error
+	err := backoff.Retry(func() error {
+		postReq, err := http.NewRequestWithContext(ctx, http.MethodPost, conf.ScytaleUrl, bytes.NewReader(payloadBytes))
+		if err != nil {
+			return err
+		}
+		postReq.Header.Set("Content-Type", wrp.MimeTypeJson)
+		postReq.Header.Set("Accept", wrp.MimeTypeJson)
+		postReq.Header.Set("Authorization", conf.AuthHeader)
+
 		resp, err = c.httpClient.Do(postReq)
 		if err != nil {
 			return err
 		}
 		if resp.StatusCode < 200 || resp.StatusCode >= 400 {
+			_ = resp.Body.Close()
 			return fmt.Errorf("invalid status code: %d", resp.StatusCode)
 		}
 		return nil

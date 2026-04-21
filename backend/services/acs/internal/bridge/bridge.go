@@ -77,7 +77,7 @@ func (b *Bridge) StartBridge() {
 		err := b.h.ConnectionRequest(cpe)
 		if err != nil {
 			log.Println("Failed to do connection request", err)
-			cpe.CancelQueuedRequest()
+			cpe.CancelRequest(request.Id)
 			respondMsg(msg.Respond, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -90,7 +90,7 @@ func (b *Bridge) StartBridge() {
 			respondMsg(msg.Respond, http.StatusOK, response)
 		case <-time.After(b.conf.DeviceAnswerTimeout):
 			log.Println("Device response timed out")
-			cpe.CancelQueuedRequest()
+			cpe.CancelRequest(request.Id)
 			respondMsg(msg.Respond, http.StatusRequestTimeout, "Request timeout")
 		}
 

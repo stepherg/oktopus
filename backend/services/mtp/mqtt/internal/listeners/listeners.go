@@ -6,13 +6,14 @@ import (
 	"broker/internal/listeners/http"
 	broker "broker/internal/listeners/mqtt"
 	"broker/internal/listeners/ws"
+	"log"
 	"sync"
 
 	"github.com/mochi-co/mqtt/v2"
 	"github.com/rs/zerolog"
 )
 
-func StartServers(c config.Config) {
+func StartServers(c config.Config) *mqtt.Server {
 
 	server := mqtt.New(&mqtt.Options{})
 
@@ -53,10 +54,14 @@ func StartServers(c config.Config) {
 
 	wg.Wait()
 
-	err := server.Serve()
-	if err != nil {
-		server.Log.Fatal().Err(err).Msg("server error")
-	}
+	go func() {
+		err := server.Serve()
+		if err != nil {
+			log.Printf("mqtt server stopped: %v", err)
+		}
+	}()
+
+	return server
 }
 
 func newMqttServer(c config.Config) *broker.Mqtt {

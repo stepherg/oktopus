@@ -17,7 +17,7 @@ func main() {
 
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
 
-	go listeners.StartServers(conf)
+	server := listeners.StartServers(conf)
 
 	if conf.WsEnable {
 		log.Printf("websocket is running at port %s", conf.WsPort)
@@ -32,4 +32,7 @@ func main() {
 	<-done
 
 	log.Println("server is shutting down...")
+	if err := server.Close(); err != nil {
+		log.Printf("failed to gracefully close mqtt server: %v", err)
+	}
 }

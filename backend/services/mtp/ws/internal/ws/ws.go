@@ -3,6 +3,7 @@ package ws
 // Websockets server implementation inspired by https://github.com/gorilla/websocket/tree/main/examples/chat
 
 import (
+	"context"
 	"log"
 	"net/http"
 
@@ -13,7 +14,7 @@ import (
 )
 
 // Starts New Websockets Server
-func StartNewServer(c config.Config, kv jetstream.KeyValue) {
+func StartNewServer(c config.Config, kv jetstream.KeyValue) func(context.Context) error {
 	// Initialize handlers of websockets events
 	handler.InitHandlers(c.ControllerEID)
 
@@ -28,23 +29,42 @@ func StartNewServer(c config.Config, kv jetstream.KeyValue) {
 		handler.ServeController(w, r, c.ControllerEID, c.Auth, kv)
 	})
 
-	go func() {
-		if c.Tls {
+	var servers []*http.Server
+
+	if c.Tls {
+		tlsServer := &http.Server{Addr: c.TlsPort, Handler: r}
+		servers = append(servers, tlsServer)
+		go func() {
 			log.Println("Websockets server running with TLS at port", c.TlsPort)
-			err := http.ListenAndServeTLS(c.TlsPort, c.FullChain, c.PrivateKey, r)
-			if err != nil {
+			err := tlsServer.ListenAndServeTLS(c.FullChain, c.PrivateKey)
+			if err != nil && err != http.ErrServerClosed {
 				log.Fatal("ListenAndServeTLS: ", err)
 			}
-		}
-	}()
+		}()
+	}
 
-	go func() {
-		if !c.NoTls {
+	if !c.NoTls {
+		server := &http.Server{Addr: c.Port, Handler: r}
+		servers = append(servers, server)
+		go func() {
 			log.Println("Websockets server running at port", c.Port)
-			err := http.ListenAndServe(c.Port, r)
-			if err != nil {
+			err := server.ListenAndServe()
+			if err != nil && err != http.ErrServerClosed {
 				log.Fatal("ListenAndServe: ", err)
 			}
+		}()
+	}
+
+	return func(ctx context.Context) error {
+		handler.Shutdown()
+
+		var firstErr error
+		for _, server := range servers {
+			if err := server.Shutdown(ctx); err != nil && firstErr == nil {
+				firstErr = err
+			}
 		}
-	}()
+
+		return firstErr
+	}
 }

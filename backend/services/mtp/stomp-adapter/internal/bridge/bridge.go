@@ -318,11 +318,11 @@ func respondMsg(respond func(data []byte) error, code int, msgData any) {
 	})
 	if err != nil {
 		log.Printf("Failed to marshal message: %q", err)
-		respond([]byte(err.Error()))
+		_ = respond([]byte(err.Error()))
 		return
 	}
 
-	respond([]byte(msg))
+	_ = respond([]byte(msg))
 }
 
 func sanitizeSN(sn string) string {

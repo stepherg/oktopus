@@ -139,6 +139,25 @@ func (c *CPE) CancelQueuedRequest() {
 	}
 }
 
+func (c *CPE) CancelRequest(requestID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.Waiting != nil && c.Waiting.Id == requestID {
+		c.Waiting = nil
+		return
+	}
+
+	if c.Queue.Size() == 0 {
+		return
+	}
+
+	req := c.Queue.Dequeue().(Request)
+	if req.Id != requestID {
+		c.Queue.Enqueue(req)
+	}
+}
+
 func (c *CPE) SnapshotQueueState() (string, int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -56,8 +56,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to listen: %s", err.Error())
 	}
-	defer func() { l.Close() }()
+	defer func() { _ = l.Close() }()
 
 	log.Println("listening on", l.Addr().Network(), l.Addr().String())
-	server.Serve(l)
+	if err := server.Serve(l); err != nil {
+		log.Printf("stompd stopped: %v", err)
+	}
 }

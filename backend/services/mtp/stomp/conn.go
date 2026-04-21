@@ -65,7 +65,7 @@ func Dial(network, addr string, opts ...func(*Conn) error) (*Conn, error) {
 
 	host, _, err := net.SplitHostPort(c.RemoteAddr().String())
 	if err != nil {
-		c.Close()
+		_ = c.Close()
 		return nil, err
 	}
 
@@ -258,7 +258,7 @@ func processLoop(c *Conn, writer *frame.Writer) {
 	var writeTimeoutChannel <-chan time.Time
 	var writeTimer *time.Timer
 
-	defer c.MustDisconnect()
+	defer func() { _ = c.MustDisconnect() }()
 
 	for {
 		if c.readTimeout > 0 && readTimer == nil {
@@ -330,7 +330,7 @@ func processLoop(c *Conn, writer *frame.Writer) {
 				c.closeMutex.Lock()
 				defer c.closeMutex.Unlock()
 				c.closed = true
-				c.conn.Close()
+				_ = c.conn.Close()
 
 				return
 
@@ -569,7 +569,7 @@ func (c *Conn) sendFrame(f *frame.Frame) error {
 	c.closeMutex.Lock()
 	if c.closed {
 		c.closeMutex.Unlock()
-		c.conn.Close()
+		_ = c.conn.Close()
 		return ErrClosedUnexpectedly
 	}
 
@@ -625,7 +625,7 @@ func (c *Conn) Subscribe(destination string, ack AckMode, opts ...func(*frame.Fr
 	c.closeMutex.Lock()
 	defer c.closeMutex.Unlock()
 	if c.closed {
-		c.conn.Close()
+		_ = c.conn.Close()
 		return nil, ErrClosedUnexpectedly
 	}
 

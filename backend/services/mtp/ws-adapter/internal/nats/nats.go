@@ -10,12 +10,16 @@ import (
 )
 
 const (
-	STREAM_NAME        = "ws"
-	BUCKET_NAME        = "devices-auth"
-	BUCKET_DESCRIPTION = "Devices authentication"
+	STREAM_NAME          = "ws"
+	BUCKET_NAME          = "devices-auth"
+	BUCKET_DESCRIPTION   = "Devices authentication"
+	PRESENCE_BUCKET      = "devices-presence"
+	PRESENCE_BUCKET_DESC = "Device MTP presence heartbeats"
+	PRESENCE_TTL         = 45 * time.Second
 )
 
 func StartNatsClient(c config.Nats) (
+	jetstream.KeyValue,
 	jetstream.KeyValue,
 	func(string, []byte) error,
 	func(string, func(*nats.Msg)) (*nats.Subscription, error),
@@ -53,7 +57,16 @@ func StartNatsClient(c config.Nats) (
 		log.Fatalf("Failed to create KeyValue store: %v", err)
 	}
 
-	return kv, publisher(js), subscriber(nc)
+	presenceKV, err := js.CreateOrUpdateKeyValue(c.Ctx, jetstream.KeyValueConfig{
+		Bucket:      PRESENCE_BUCKET,
+		Description: PRESENCE_BUCKET_DESC,
+		TTL:         PRESENCE_TTL,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create presence KV bucket: %v", err)
+	}
+
+	return kv, presenceKV, publisher(js), subscriber(nc)
 }
 
 func subscriber(nc *nats.Conn) func(string, func(*nats.Msg)) (*nats.Subscription, error) {

@@ -37,7 +37,7 @@ func NewDatabase(ctx context.Context, mongoUri string) Database {
 
 	devices := client.Database("adapter").Collection("devices")
 	createIndexes(ctx, devices)
-	//resetDeviceStatus(ctx, devices)
+	resetDeviceStatus(ctx, devices)
 
 	db.devices = devices
 	db.ctx = ctx
@@ -46,21 +46,25 @@ func NewDatabase(ctx context.Context, mongoUri string) Database {
 	return db
 }
 
-// func resetDeviceStatus(ctx context.Context, devices *mongo.Collection) {
-// 	_, err := devices.UpdateMany(ctx, bson.D{{}}, bson.D{
-// 		{
-// 			"$set", bson.D{
-// 				{"mqtt", 0},
-// 				{"stomp", 0},
-// 				{"websockets", 0},
-// 				{"status", 0},
-// 			},
-// 		},
-// 	})
-// 	if err != nil {
-// 		log.Fatalln("ERROR to reset device status in database:", err)
-// 	}
-// }
+func resetDeviceStatus(ctx context.Context, devices *mongo.Collection) {
+	_, err := devices.UpdateMany(ctx, bson.D{}, bson.D{
+		{
+			Key: "$set", Value: bson.D{
+				{Key: "mqtt", Value: 0},
+				{Key: "stomp", Value: 0},
+				{Key: "websockets", Value: 0},
+				{Key: "cwmp", Value: 0},
+				{Key: "webpa", Value: 0},
+				{Key: "status", Value: 0},
+			},
+		},
+	})
+	if err != nil {
+		log.Println("ERROR resetting device status on startup:", err)
+	} else {
+		log.Println("Device status reset to Offline on startup")
+	}
+}
 
 func createIndexes(ctx context.Context, devices *mongo.Collection) {
 	indexField := bson.M{"sn": 1}

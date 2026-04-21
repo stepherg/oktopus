@@ -6,9 +6,11 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/oktopUSP/oktopus/backend/services/mtp/stomp-adapter/internal/config"
 	"github.com/oktopUSP/oktopus/backend/services/mtp/stomp-adapter/internal/stomp"
 	"github.com/oktopUSP/oktopus/backend/services/mtp/stomp-adapter/internal/stomp/frame"
@@ -20,6 +22,11 @@ const (
 )
 
 const STOMP_CONNECTION_RETRY = 5 * time.Second
+
+const (
+	MTP_NAME         = "stomp"
+	PRESENCE_REFRESH = 15 * time.Second
+)
 
 type msgAnswer struct {
 	Code int
@@ -43,18 +50,23 @@ type (
 )
 
 type Bridge struct {
-	Pub   Publisher
-	Sub   Subscriber
-	Stomp config.Stomp
-	Ctx   context.Context
+	Pub             Publisher
+	Sub             Subscriber
+	Stomp           config.Stomp
+	Ctx             context.Context
+	presence        jetstream.KeyValue
+	presenceMu      sync.Mutex
+	presenceCancels map[string]context.CancelFunc
 }
 
-func NewBridge(p Publisher, s Subscriber, ctx context.Context, stomp config.Stomp) *Bridge {
+func NewBridge(p Publisher, s Subscriber, ctx context.Context, stomp config.Stomp, presence jetstream.KeyValue) *Bridge {
 	return &Bridge{
-		Pub:   p,
-		Sub:   s,
-		Stomp: stomp,
-		Ctx:   ctx,
+		Pub:             p,
+		Sub:             s,
+		Stomp:           stomp,
+		Ctx:             ctx,
+		presence:        presence,
+		presenceCancels: make(map[string]context.CancelFunc),
 	}
 }
 
@@ -74,6 +86,8 @@ func (b *Bridge) StartBridge() {
 			if err != nil {
 				continue
 			}
+			// Cancel all presence goroutines on reconnect; keys will expire via TTL.
+			b.stopAllPresence()
 			b.subscribe(conn)
 
 			sub, err := conn.Subscribe(STOMP_STATUS_QUEUE, stomp.AckAuto)
@@ -99,6 +113,11 @@ func (b *Bridge) StartBridge() {
 						status := fmtBody[1]
 						log.Println("Device:", device, "Status:", status)
 						b.Pub(NATS_STOMP_SUBJECT_PREFIX+device+".status", []byte(status)) //nolint:errcheck
+						if status == "1" {
+							b.startPresence(device)
+						} else {
+							b.stopPresence(device)
+						}
 					} else {
 						log.Println("Invalid status message", body)
 					}
@@ -271,4 +290,66 @@ func respondMsg(respond func(data []byte) error, code int, msgData any) {
 	}
 
 	respond([]byte(msg))
+}
+
+func sanitizeSN(sn string) string {
+	return strings.ReplaceAll(sn, ":", "=")
+}
+
+func (b *Bridge) presenceKey(sn string) string {
+	return MTP_NAME + "." + sanitizeSN(sn)
+}
+
+func (b *Bridge) startPresence(sn string) {
+	b.presenceMu.Lock()
+	defer b.presenceMu.Unlock()
+
+	if cancel, ok := b.presenceCancels[sn]; ok {
+		cancel()
+	}
+
+	ctx, cancel := context.WithCancel(b.Ctx)
+	b.presenceCancels[sn] = cancel
+
+	key := b.presenceKey(sn)
+	go func() {
+		ticker := time.NewTicker(PRESENCE_REFRESH)
+		defer ticker.Stop()
+		if _, err := b.presence.Put(ctx, key, []byte("1")); err != nil {
+			log.Printf("presence: initial put failed for %s: %v", sn, err)
+		}
+		for {
+			select {
+			case <-ticker.C:
+				if _, err := b.presence.Put(ctx, key, []byte("1")); err != nil && ctx.Err() == nil {
+					log.Printf("presence: refresh failed for %s: %v", sn, err)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+}
+
+func (b *Bridge) stopPresence(sn string) {
+	b.presenceMu.Lock()
+	defer b.presenceMu.Unlock()
+
+	if cancel, ok := b.presenceCancels[sn]; ok {
+		cancel()
+		delete(b.presenceCancels, sn)
+	}
+	if err := b.presence.Delete(b.Ctx, b.presenceKey(sn)); err != nil {
+		log.Printf("presence: delete failed for %s: %v", sn, err)
+	}
+}
+
+func (b *Bridge) stopAllPresence() {
+	b.presenceMu.Lock()
+	defer b.presenceMu.Unlock()
+
+	for sn, cancel := range b.presenceCancels {
+		cancel()
+		delete(b.presenceCancels, sn)
+	}
 }

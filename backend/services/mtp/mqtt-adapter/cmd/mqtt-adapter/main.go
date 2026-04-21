@@ -18,9 +18,9 @@ func main() {
 
 	c := config.NewConfig()
 
-	kv, publisher, subscriber := nats.StartNatsClient(c.Nats)
+	kv, presenceKV, publisher, subscriber := nats.StartNatsClient(c.Nats)
 
-	bridge := bridge.NewBridge(publisher, subscriber, c.Mqtt.Ctx, c.Mqtt, kv)
+	bridge := bridge.NewBridge(publisher, subscriber, c.Mqtt.Ctx, c.Mqtt, kv, presenceKV)
 
 	if c.Mqtt.Url != "" {
 		bridge.StartBridge(c.Mqtt.Url, c.Mqtt.ClientId)

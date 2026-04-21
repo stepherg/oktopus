@@ -72,7 +72,7 @@ func (h *Hub) run() {
 		case client := <-h.register:
 			// register new eid
 			h.clients[client.eid] = client
-			if client.eid != ceid{
+			if client.eid != ceid {
 				log.Printf("New device connected: %s", client.eid)
 				data, _ := json.Marshal(deviceStatus{client.eid, ONLINE})
 				msg := message{
@@ -95,8 +95,28 @@ func (h *Hub) run() {
 						delete(h.clients, c.eid)
 					}
 				}
-			}else{
+			} else {
 				log.Printf("New controller connected: %s", client.eid)
+				// Replay ONLINE for all agents already connected so the controller
+				// doesn't miss devices that connected before it did.
+				for eid := range h.clients {
+					if eid == ceid {
+						continue
+					}
+					onlineData, _ := json.Marshal(deviceStatus{eid, ONLINE})
+					replayMsg := message{
+						from:    "WS server",
+						eid:     ceid,
+						data:    onlineData,
+						msgType: websocket.TextMessage,
+					}
+					select {
+					case client.send <- replayMsg:
+						log.Printf("Replayed ONLINE for existing agent %s to reconnected controller", eid)
+					default:
+						log.Printf("Failed to replay ONLINE for %s (send buffer full)", eid)
+					}
+				}
 			}
 
 		case client := <-h.unregister:

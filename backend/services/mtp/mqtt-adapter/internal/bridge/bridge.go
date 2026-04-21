@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/OktopUSP/oktopus/backend/services/mqtt-adapter/internal/config"
@@ -32,6 +33,8 @@ const NATS_MQTT_SUBJECT_PREFIX = "mqtt.usp.v1."
 const NATS_MQTT_ADAPTER_SUBJECT_PREFIX = "mqtt-adapter.usp.v1."
 const DEVICE_SUBJECT_PREFIX = "device.usp.v1."
 const MQTT_TOPIC_PREFIX = "oktopus/usp/"
+const MTP_NAME = "mqtt"
+const PRESENCE_REFRESH = 15 * time.Second
 
 type (
 	Publisher  func(string, []byte) error
@@ -39,20 +42,25 @@ type (
 )
 
 type Bridge struct {
-	Pub  Publisher
-	Sub  Subscriber
-	Mqtt config.Mqtt
-	kv   jetstream.KeyValue
-	Ctx  context.Context
+	Pub             Publisher
+	Sub             Subscriber
+	Mqtt            config.Mqtt
+	kv              jetstream.KeyValue
+	presence        jetstream.KeyValue
+	presenceMu      sync.Mutex
+	presenceCancels map[string]context.CancelFunc
+	Ctx             context.Context
 }
 
-func NewBridge(p Publisher, s Subscriber, ctx context.Context, m config.Mqtt, kv jetstream.KeyValue) *Bridge {
+func NewBridge(p Publisher, s Subscriber, ctx context.Context, m config.Mqtt, kv jetstream.KeyValue, presence jetstream.KeyValue) *Bridge {
 	return &Bridge{
-		Pub:  p,
-		Sub:  s,
-		Mqtt: m,
-		Ctx:  ctx,
-		kv:   kv,
+		Pub:             p,
+		Sub:             s,
+		Mqtt:            m,
+		Ctx:             ctx,
+		kv:              kv,
+		presence:        presence,
+		presenceCancels: make(map[string]context.CancelFunc),
 	}
 }
 
@@ -166,7 +174,13 @@ func (b *Bridge) mqttMessageHandler(status, controller, apiMsg chan *paho.Publis
 	for {
 		select {
 		case d := <-status:
-			_ = b.Pub(NATS_MQTT_SUBJECT_PREFIX+getDeviceFromTopic(d.Topic)+".status", d.Payload)
+			device := getDeviceFromTopic(d.Topic)
+			_ = b.Pub(NATS_MQTT_SUBJECT_PREFIX+device+".status", d.Payload)
+			if string(d.Payload) == "1" {
+				b.startPresence(device)
+			} else {
+				b.stopPresence(device)
+			}
 		case c := <-controller:
 			device := getDeviceFromTopic(c.Topic)
 			// Publish to the info subject so the controller's info request gets its response.
@@ -276,4 +290,56 @@ func (b *Bridge) setMqttPassword() {
 	}
 
 	b.Mqtt.Password = string(entry.Value())
+}
+
+func sanitizeSN(sn string) string {
+	return strings.ReplaceAll(sn, ":", "=")
+}
+
+func (b *Bridge) presenceKey(sn string) string {
+	return MTP_NAME + "." + sanitizeSN(sn)
+}
+
+func (b *Bridge) startPresence(sn string) {
+	b.presenceMu.Lock()
+	defer b.presenceMu.Unlock()
+
+	if cancel, ok := b.presenceCancels[sn]; ok {
+		cancel()
+	}
+
+	ctx, cancel := context.WithCancel(b.Ctx)
+	b.presenceCancels[sn] = cancel
+
+	key := b.presenceKey(sn)
+	go func() {
+		ticker := time.NewTicker(PRESENCE_REFRESH)
+		defer ticker.Stop()
+		if _, err := b.presence.Put(ctx, key, []byte("1")); err != nil {
+			log.Printf("presence: initial put failed for %s: %v", sn, err)
+		}
+		for {
+			select {
+			case <-ticker.C:
+				if _, err := b.presence.Put(ctx, key, []byte("1")); err != nil && ctx.Err() == nil {
+					log.Printf("presence: refresh failed for %s: %v", sn, err)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+}
+
+func (b *Bridge) stopPresence(sn string) {
+	b.presenceMu.Lock()
+	defer b.presenceMu.Unlock()
+
+	if cancel, ok := b.presenceCancels[sn]; ok {
+		cancel()
+		delete(b.presenceCancels, sn)
+	}
+	if err := b.presence.Delete(b.Ctx, b.presenceKey(sn)); err != nil {
+		log.Printf("presence: delete failed for %s: %v", sn, err)
+	}
 }

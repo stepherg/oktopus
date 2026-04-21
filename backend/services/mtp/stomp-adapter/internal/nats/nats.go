@@ -10,11 +10,15 @@ import (
 )
 
 const (
-	STREAM_NAME = "stomp"
+	STREAM_NAME          = "stomp"
+	PRESENCE_BUCKET      = "devices-presence"
+	PRESENCE_BUCKET_DESC = "Device MTP presence heartbeats"
+	PRESENCE_TTL         = 45 * time.Second
 )
 
 func StartNatsClient(c config.Nats) (
 	*nats.Conn,
+	jetstream.KeyValue,
 	func(string, []byte) error,
 	func(string, func(*nats.Msg)) error,
 ) {
@@ -43,7 +47,16 @@ func StartNatsClient(c config.Nats) (
 		log.Fatalf("Failed to create JetStream client: %v", err)
 	}
 
-	return nc, publisher(js), subscriber(nc)
+	presenceKV, err := js.CreateOrUpdateKeyValue(c.Ctx, jetstream.KeyValueConfig{
+		Bucket:      PRESENCE_BUCKET,
+		Description: PRESENCE_BUCKET_DESC,
+		TTL:         PRESENCE_TTL,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create presence KV bucket: %v", err)
+	}
+
+	return nc, presenceKV, publisher(js), subscriber(nc)
 }
 
 func subscriber(nc *nats.Conn) func(string, func(*nats.Msg)) error {

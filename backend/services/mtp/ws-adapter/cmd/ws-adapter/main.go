@@ -18,9 +18,9 @@ func main() {
 
 	c := config.NewConfig()
 
-	kv, publisher, subscriber := nats.StartNatsClient(c.Nats)
+	kv, presenceKV, publisher, subscriber := nats.StartNatsClient(c.Nats)
 
-	bridge := bridge.NewBridge(publisher, subscriber, c.Ws.Ctx, c.Ws, kv)
+	bridge := bridge.NewBridge(publisher, subscriber, c.Ws.Ctx, c.Ws, kv, presenceKV)
 
 	if !c.Ws.NoTls {
 		bridge.StartBridge(c.Ws.Port, false)

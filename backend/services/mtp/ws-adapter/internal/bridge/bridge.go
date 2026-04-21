@@ -26,6 +26,8 @@ const (
 	NATS_WS_ADAPTER_SUBJECT_PREFIX = "ws-adapter.usp.v1."
 	DEVICE_SUBJECT_PREFIX          = "device.usp.v1."
 	WS_CONNECTION_RETRY            = 10 * time.Second
+	MTP_NAME                       = "ws"
+	PRESENCE_REFRESH               = 15 * time.Second
 )
 
 const (
@@ -49,24 +51,29 @@ type (
 )
 
 type Bridge struct {
-	Pub            Publisher
-	Sub            Subscriber
-	Ws             config.Ws
-	NewDeviceQueue map[string]string
-	NewDevQMutex   *sync.Mutex
-	kv             jetstream.KeyValue
-	Ctx            context.Context
-	subs           []*nats.Subscription
-	subsMu         sync.Mutex
+	Pub             Publisher
+	Sub             Subscriber
+	Ws              config.Ws
+	NewDeviceQueue  map[string]string
+	NewDevQMutex    *sync.Mutex
+	kv              jetstream.KeyValue
+	presence        jetstream.KeyValue
+	presenceMu      sync.Mutex
+	presenceCancels map[string]context.CancelFunc
+	Ctx             context.Context
+	subs            []*nats.Subscription
+	subsMu          sync.Mutex
 }
 
-func NewBridge(p Publisher, s Subscriber, ctx context.Context, w config.Ws, kv jetstream.KeyValue) *Bridge {
+func NewBridge(p Publisher, s Subscriber, ctx context.Context, w config.Ws, kv jetstream.KeyValue, presence jetstream.KeyValue) *Bridge {
 	return &Bridge{
-		Pub: p,
-		Sub: s,
-		Ws:  w,
-		Ctx: ctx,
-		kv:  kv,
+		Pub:             p,
+		Sub:             s,
+		Ws:              w,
+		Ctx:             ctx,
+		kv:              kv,
+		presence:        presence,
+		presenceCancels: make(map[string]context.CancelFunc),
 	}
 }
 
@@ -143,6 +150,10 @@ func (b *Bridge) subscribe(wc *websocket.Conn) {
 	}
 	b.subs = nil
 	b.subsMu.Unlock()
+
+	// Cancel all active presence goroutines; keys will expire via TTL which
+	// causes the adapter service watcher to mark those devices offline.
+	b.stopAllPresence()
 
 	addSub := func(subject string, handler func(*nats.Msg)) {
 		sub, err := b.Sub(subject, handler)
@@ -260,6 +271,83 @@ func (b *Bridge) statusMsgHandler(wsMsg []byte) {
 		return
 	}
 	b.Pub(NATS_WS_SUBJECT_PREFIX+deviceStatus.Eid+".status", []byte(deviceStatus.Status)) //nolint:errcheck
+
+	if deviceStatus.Status == "1" {
+		b.startPresence(deviceStatus.Eid)
+	} else {
+		b.stopPresence(deviceStatus.Eid)
+	}
+}
+
+// sanitizeSN replaces characters that are not valid in NATS KV keys.
+// Colons (used in USP EIDs, e.g. "os::D89C8E-...") are replaced with "=".
+func sanitizeSN(sn string) string {
+	return strings.ReplaceAll(sn, ":", "=")
+}
+
+func (b *Bridge) presenceKey(sn string) string {
+	return MTP_NAME + "." + sanitizeSN(sn)
+}
+
+// startPresence starts a goroutine that refreshes the device's presence key
+// every PRESENCE_REFRESH interval. Any existing goroutine for the same device
+// is cancelled first.
+func (b *Bridge) startPresence(sn string) {
+	b.presenceMu.Lock()
+	defer b.presenceMu.Unlock()
+
+	if cancel, ok := b.presenceCancels[sn]; ok {
+		cancel()
+	}
+
+	ctx, cancel := context.WithCancel(b.Ctx)
+	b.presenceCancels[sn] = cancel
+
+	key := b.presenceKey(sn)
+	go func() {
+		ticker := time.NewTicker(PRESENCE_REFRESH)
+		defer ticker.Stop()
+		if _, err := b.presence.Put(ctx, key, []byte("1")); err != nil {
+			log.Printf("presence: initial put failed for %s: %v", sn, err)
+		}
+		for {
+			select {
+			case <-ticker.C:
+				if _, err := b.presence.Put(ctx, key, []byte("1")); err != nil && ctx.Err() == nil {
+					log.Printf("presence: refresh failed for %s: %v", sn, err)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+}
+
+// stopPresence cancels the presence refresh goroutine for a device and
+// immediately deletes its key so it shows offline without waiting for TTL.
+func (b *Bridge) stopPresence(sn string) {
+	b.presenceMu.Lock()
+	defer b.presenceMu.Unlock()
+
+	if cancel, ok := b.presenceCancels[sn]; ok {
+		cancel()
+		delete(b.presenceCancels, sn)
+	}
+	if err := b.presence.Delete(b.Ctx, b.presenceKey(sn)); err != nil {
+		log.Printf("presence: delete failed for %s: %v", sn, err)
+	}
+}
+
+// stopAllPresence cancels all presence refresh goroutines (called on reconnect).
+// Keys are left to expire via TTL so the watcher fires offline events.
+func (b *Bridge) stopAllPresence() {
+	b.presenceMu.Lock()
+	defer b.presenceMu.Unlock()
+
+	for sn, cancel := range b.presenceCancels {
+		cancel()
+		delete(b.presenceCancels, sn)
+	}
 }
 
 func (b *Bridge) urlBuild(tls bool, port string) string {

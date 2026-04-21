@@ -21,16 +21,17 @@ func main() {
 
 	c := config.NewConfig()
 
-	js, nc := nats.StartNatsClient(c.Nats, c.Controller)
+	js, nc, presenceKV := nats.StartNatsClient(c.Nats, c.Controller)
 
-	db := db.NewDatabase(c.Mongo.Ctx, c.Mongo.Uri)
+	database := db.NewDatabase(c.Mongo.Ctx, c.Mongo.Uri)
 
-	usp_handler := usp_handler.NewHandler(nc, js, db, c.Controller.ControllerId)
-	cwmp_handler := cwmp_handler.NewHandler(nc, js, db, c.Controller.ControllerId)
+	usp_handler := usp_handler.NewHandler(nc, js, database, c.Controller.ControllerId)
+	cwmp_handler := cwmp_handler.NewHandler(nc, js, database, c.Controller.ControllerId)
 
 	events.StartEventsListener(c.Nats.Ctx, js, usp_handler, cwmp_handler)
+	events.StartPresenceWatcher(c.Nats.Ctx, presenceKV, database)
 
-	reqs.StartRequestsListener(c.Nats.Ctx, nc, db)
+	reqs.StartRequestsListener(c.Nats.Ctx, nc, database)
 
 	<-done
 

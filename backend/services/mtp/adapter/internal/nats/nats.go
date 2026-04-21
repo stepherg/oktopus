@@ -12,21 +12,24 @@ import (
 )
 
 const (
-	MQTT_STREAM_NAME   = "mqtt"
-	WS_STREAM_NAME     = "ws"
-	STOMP_STREAM_NAME  = "stomp"
-	LORA_STREAM_NAME   = "lora"
-	OPC_STREAM_NAME    = "opc"
-	CWMP_STREAM_NAME   = "cwmp"
-	WEBPA_STREAM_NAME  = "webpa"
-	USP_SUBJECT        = ".usp.v1."
-	BUCKET_NAME        = "devices-auth"
-	BUCKET_DESCRIPTION = "Devices authentication"
-	ADAPTER_SUBJECT    = "adapter" + USP_SUBJECT
-	ADAPTER_QUEUE      = "adapter"
+	MQTT_STREAM_NAME     = "mqtt"
+	WS_STREAM_NAME       = "ws"
+	STOMP_STREAM_NAME    = "stomp"
+	LORA_STREAM_NAME     = "lora"
+	OPC_STREAM_NAME      = "opc"
+	CWMP_STREAM_NAME     = "cwmp"
+	WEBPA_STREAM_NAME    = "webpa"
+	USP_SUBJECT          = ".usp.v1."
+	BUCKET_NAME          = "devices-auth"
+	BUCKET_DESCRIPTION   = "Devices authentication"
+	PRESENCE_BUCKET_NAME = "devices-presence"
+	PRESENCE_BUCKET_DESC = "Device MTP presence heartbeats"
+	PRESENCE_TTL         = 45 * time.Second
+	ADAPTER_SUBJECT      = "adapter" + USP_SUBJECT
+	ADAPTER_QUEUE        = "adapter"
 )
 
-func StartNatsClient(c config.Nats, controller config.Controller) (jetstream.JetStream, *nats.Conn) {
+func StartNatsClient(c config.Nats, controller config.Controller) (jetstream.JetStream, *nats.Conn, jetstream.KeyValue) {
 
 	var (
 		nc  *nats.Conn
@@ -66,7 +69,16 @@ func StartNatsClient(c config.Nats, controller config.Controller) (jetstream.Jet
 
 	createKeyValueStores(c.Ctx, js, controller)
 
-	return js, nc
+	presenceKV, err := js.CreateOrUpdateKeyValue(c.Ctx, jetstream.KeyValueConfig{
+		Bucket:      PRESENCE_BUCKET_NAME,
+		Description: PRESENCE_BUCKET_DESC,
+		TTL:         PRESENCE_TTL,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create presence KV bucket: %v", err)
+	}
+
+	return js, nc, presenceKV
 }
 
 func createKeyValueStores(ctx context.Context, js jetstream.JetStream, control config.Controller) {

@@ -46,7 +46,7 @@ const (
 
 type (
 	Publisher  func(string, []byte) error
-	Subscriber func(string, func(*nats.Msg)) error
+	Subscriber func(string, func(*nats.Msg)) (*nats.Subscription, error)
 )
 
 type Bridge struct {
@@ -57,6 +57,8 @@ type Bridge struct {
 	presence        jetstream.KeyValue
 	presenceMu      sync.Mutex
 	presenceCancels map[string]context.CancelFunc
+	subs            []*nats.Subscription
+	subsMu          sync.Mutex
 }
 
 func NewBridge(p Publisher, s Subscriber, ctx context.Context, stomp config.Stomp, presence jetstream.KeyValue) *Bridge {
@@ -77,12 +79,9 @@ func (b *Bridge) StartBridge() {
 		stomp.ConnOpt.Host("/"),
 	}
 
-	var conn *stomp.Conn
-	var err error
-
 	go func() {
 		for {
-			conn, err = connectToServer(b.Stomp.Url, options)
+			conn, err := connectToServer(b.Stomp.Url, options)
 			if err != nil {
 				continue
 			}
@@ -93,7 +92,9 @@ func (b *Bridge) StartBridge() {
 			sub, err := conn.Subscribe(STOMP_STATUS_QUEUE, stomp.AckAuto)
 			if err != nil {
 				log.Println("cannot subscribe to", STOMP_STATUS_QUEUE, err.Error())
-				return
+				_ = conn.Disconnect()
+				time.Sleep(STOMP_CONNECTION_RETRY)
+				continue
 			}
 			log.Println("Subscribed to", STOMP_STATUS_QUEUE)
 
@@ -102,7 +103,10 @@ func (b *Bridge) StartBridge() {
 					log.Println("Subscription is no longer active")
 					break
 				}
-				msg := <-sub.C
+				msg, ok := <-sub.C
+				if !ok || msg == nil {
+					break
+				}
 				body := msg.Header.Get("message")
 				if body != "connection closed" {
 					log.Println("Received message", body)
@@ -123,6 +127,10 @@ func (b *Bridge) StartBridge() {
 					}
 				}
 			}
+
+			_ = sub.Unsubscribe()
+			_ = conn.Disconnect()
+			time.Sleep(STOMP_CONNECTION_RETRY)
 		}
 	}()
 
@@ -143,8 +151,25 @@ func connectToServer(url string, options []func(*stomp.Conn) error) (*stomp.Conn
 }
 
 func (b *Bridge) subscribe(st *stomp.Conn) {
+	b.subsMu.Lock()
+	for _, sub := range b.subs {
+		sub.Drain() //nolint:errcheck
+	}
+	b.subs = nil
+	b.subsMu.Unlock()
 
-	_ = b.Sub(NATS_STOMP_ADAPTER_SUBJECT_PREFIX+"*.info", func(msg *nats.Msg) {
+	addSub := func(subject string, handler func(*nats.Msg)) {
+		sub, err := b.Sub(subject, handler)
+		if err != nil {
+			log.Printf("subscribe error on %s: %v", subject, err)
+			return
+		}
+		b.subsMu.Lock()
+		b.subs = append(b.subs, sub)
+		b.subsMu.Unlock()
+	}
+
+	addSub(NATS_STOMP_ADAPTER_SUBJECT_PREFIX+"*.info", func(msg *nats.Msg) {
 
 		log.Printf("Received message on info subject")
 
@@ -158,6 +183,7 @@ func (b *Bridge) subscribe(st *stomp.Conn) {
 			log.Println("cannot subscribe to", deviceInfoQueue, err.Error())
 			return
 		}
+		defer func() { _ = sub.Unsubscribe() }()
 		log.Println("Subscribed to", deviceInfoQueue)
 
 		err = st.Send(STOMP_QUEUE_PREFIX+"agent/"+device, "application/vnd.bbf.usp.msg", msg.Data, func(f *frame.Frame) error {
@@ -171,7 +197,11 @@ func (b *Bridge) subscribe(st *stomp.Conn) {
 		}
 
 		select {
-		case data := <-sub.C:
+		case data, ok := <-sub.C:
+			if !ok || data == nil {
+				log.Println("Device info subscription closed before response")
+				return
+			}
 			body := data.Body
 			log.Println("Received message answer")
 			err = b.Pub(NATS_STOMP_SUBJECT_PREFIX+device+".info", body)
@@ -181,10 +211,9 @@ func (b *Bridge) subscribe(st *stomp.Conn) {
 		case <-time.After(DEVICE_TIMEOUT_RESPONSE):
 			log.Println("Timeout waiting for device info response")
 		}
-		sub.Unsubscribe() //nolint:errcheck
 	})
 
-	_ = b.Sub(NATS_STOMP_ADAPTER_SUBJECT_PREFIX+"*.api", func(msg *nats.Msg) {
+	addSub(NATS_STOMP_ADAPTER_SUBJECT_PREFIX+"*.api", func(msg *nats.Msg) {
 
 		log.Printf("Received message on api subject")
 
@@ -198,6 +227,7 @@ func (b *Bridge) subscribe(st *stomp.Conn) {
 			log.Println("cannot subscribe to", STOMP_STATUS_QUEUE, err.Error())
 			return
 		}
+		defer func() { _ = sub.Unsubscribe() }()
 		log.Println("Subscribed to", deviceApiQueue)
 
 		err = st.Send(STOMP_QUEUE_PREFIX+"agent/"+device, "application/vnd.bbf.usp.msg", msg.Data, func(f *frame.Frame) error {
@@ -211,7 +241,11 @@ func (b *Bridge) subscribe(st *stomp.Conn) {
 		}
 
 		select {
-		case data := <-sub.C:
+		case data, ok := <-sub.C:
+			if !ok || data == nil {
+				log.Println("Device api subscription closed before response")
+				return
+			}
 			body := data.Body
 			err = b.Pub(DEVICE_SUBJECT_PREFIX+device+".api", body)
 			if err != nil {
@@ -220,7 +254,6 @@ func (b *Bridge) subscribe(st *stomp.Conn) {
 		case <-time.After(DEVICE_TIMEOUT_RESPONSE):
 			log.Println("Timeout waiting for device info response")
 		}
-		sub.Unsubscribe() //nolint:errcheck
 	})
 
 	// Subscribe to the static notify destination so agent-initiated NOTIFY
@@ -254,7 +287,7 @@ func (b *Bridge) subscribe(st *stomp.Conn) {
 		}()
 	}
 
-	_ = b.Sub(NATS_STOMP_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
+	addSub(NATS_STOMP_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
 
 		log.Printf("Received message on rtt subject")
 

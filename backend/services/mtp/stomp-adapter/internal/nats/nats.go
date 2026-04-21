@@ -20,7 +20,7 @@ func StartNatsClient(c config.Nats) (
 	*nats.Conn,
 	jetstream.KeyValue,
 	func(string, []byte) error,
-	func(string, func(*nats.Msg)) error,
+	func(string, func(*nats.Msg)) (*nats.Subscription, error),
 ) {
 
 	var (
@@ -59,13 +59,13 @@ func StartNatsClient(c config.Nats) (
 	return nc, presenceKV, publisher(js), subscriber(nc)
 }
 
-func subscriber(nc *nats.Conn) func(string, func(*nats.Msg)) error {
-	return func(subject string, handler func(*nats.Msg)) error {
-		_, err := nc.Subscribe(subject, handler)
+func subscriber(nc *nats.Conn) func(string, func(*nats.Msg)) (*nats.Subscription, error) {
+	return func(subject string, handler func(*nats.Msg)) (*nats.Subscription, error) {
+		sub, err := nc.Subscribe(subject, handler)
 		if err != nil {
 			log.Printf("error to subscribe to subject %s error: %q", subject, err)
 		}
-		return err
+		return sub, err
 	}
 }
 

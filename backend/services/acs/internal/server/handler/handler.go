@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"oktopUSP/backend/services/acs/internal/config"
+	"sync"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -21,6 +22,7 @@ type Request struct {
 }
 
 type CPE struct {
+	mu                   sync.Mutex
 	SerialNumber         string
 	Manufacturer         string
 	OUI                  string
@@ -51,13 +53,14 @@ type NatsSendMessage struct {
 }
 
 type MsgCPEs struct {
-	CPES map[string]CPE
+	CPES map[string]*CPE
 }
 
 type Handler struct {
 	pub       func(string, []byte) error
 	sub       func(string, func(*nats.Msg)) error
-	Cpes      map[string]CPE
+	mu        sync.RWMutex
+	Cpes      map[string]*CPE
 	acsConfig config.Acs
 }
 
@@ -75,7 +78,77 @@ func NewHandler(
 	return &Handler{
 		pub:       pub,
 		sub:       sub,
-		Cpes:      make(map[string]CPE),
+		Cpes:      make(map[string]*CPE),
 		acsConfig: cAcs,
 	}
+}
+
+func (h *Handler) GetCPE(serialNumber string) (*CPE, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	cpe, ok := h.Cpes[serialNumber]
+	return cpe, ok
+}
+
+func (h *Handler) PutCPE(cpe *CPE) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.Cpes[cpe.SerialNumber] = cpe
+}
+
+func (h *Handler) DeleteCPE(serialNumber string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	delete(h.Cpes, serialNumber)
+}
+
+func (h *Handler) SnapshotCPEs() []*CPE {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	cpes := make([]*CPE, 0, len(h.Cpes))
+	for _, cpe := range h.Cpes {
+		cpes = append(cpes, cpe)
+	}
+
+	return cpes
+}
+
+func (c *CPE) TryEnqueueRequest(req Request) (bool, int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	queueSize := c.Queue.Size()
+	if c.Waiting != nil || queueSize > 0 {
+		return false, queueSize
+	}
+
+	c.Queue.Enqueue(req)
+	return true, queueSize
+}
+
+func (c *CPE) CancelQueuedRequest() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.Waiting == nil && c.Queue.Size() > 0 {
+		c.Queue.Dequeue()
+	}
+}
+
+func (c *CPE) SnapshotQueueState() (string, int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.SerialNumber, c.Queue.Size()
+}
+
+func (c *CPE) ConnectionRequestDetails() (string, string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.SerialNumber, c.ConnectionRequestURL
 }

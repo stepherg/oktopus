@@ -283,7 +283,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	case *usp_record.Record_WebsocketConnect:
 		connectMsg = true
 	}
-	if c, ok := hub.clients[record.FromId]; ok {
+	if c, ok := hub.getClient(record.FromId); ok {
 		if connectMsg {
 			return // Skip redundant connect messages
 		}

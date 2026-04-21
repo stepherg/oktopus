@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"log"
 	"net"
 	"net/url"
@@ -38,7 +39,7 @@ const PRESENCE_REFRESH = 15 * time.Second
 
 type (
 	Publisher  func(string, []byte) error
-	Subscriber func(string, func(*nats.Msg)) error
+	Subscriber func(string, func(*nats.Msg)) (*nats.Subscription, error)
 )
 
 type Bridge struct {
@@ -50,6 +51,12 @@ type Bridge struct {
 	presenceMu      sync.Mutex
 	presenceCancels map[string]context.CancelFunc
 	Ctx             context.Context
+	subs            []*nats.Subscription
+	subsMu          sync.Mutex
+	connMu          sync.RWMutex
+	connections     map[string]*autopaho.ConnectionManager
+	activeConnID    string
+	handlersOnce    sync.Once
 }
 
 func NewBridge(p Publisher, s Subscriber, ctx context.Context, m config.Mqtt, kv jetstream.KeyValue, presence jetstream.KeyValue) *Bridge {
@@ -61,10 +68,12 @@ func NewBridge(p Publisher, s Subscriber, ctx context.Context, m config.Mqtt, kv
 		kv:              kv,
 		presence:        presence,
 		presenceCancels: make(map[string]context.CancelFunc),
+		connections:     make(map[string]*autopaho.ConnectionManager),
 	}
 }
 
 func (b *Bridge) StartBridge(serverUrl, clientId string) {
+	connectionID := serverUrl + "|" + clientId
 
 	broker, _ := url.Parse(serverUrl)
 
@@ -74,7 +83,10 @@ func (b *Bridge) StartBridge(serverUrl, clientId string) {
 
 	go b.mqttMessageHandler(status, controller, apiMsg)
 
-	pahoClientConfig := buildClientConfig(status, controller, apiMsg, clientId)
+	pahoClientConfig := buildClientConfig(status, controller, apiMsg, clientId, func() {
+		b.clearActiveConnection(connectionID)
+		b.stopAllPresence()
+	})
 
 	autopahoClientConfig := autopaho.ClientConfig{
 		BrokerUrls: []*url.URL{
@@ -85,7 +97,10 @@ func (b *Bridge) StartBridge(serverUrl, clientId string) {
 		ConnectTimeout:    5 * time.Second,
 		OnConnectionUp: func(cm *autopaho.ConnectionManager, connAck *paho.Connack) {
 			log.Printf("Connected to MQTT broker--> %s", serverUrl)
-			subscribe(b.Mqtt.Ctx, b.Mqtt.Qos, cm)
+			b.setActiveConnection(connectionID, cm)
+			if err := subscribe(b.Mqtt.Ctx, b.Mqtt.Qos, cm); err != nil {
+				log.Printf("mqtt subscribe failed: %v", err)
+			}
 		},
 		OnConnectError: func(err error) {
 			log.Printf("Error while attempting connection: %s\n", err)
@@ -105,44 +120,61 @@ func (b *Bridge) StartBridge(serverUrl, clientId string) {
 	log.Println("MQTT username:", b.Mqtt.Username)
 	log.Println("MQTT password: [REDACTED]")
 
-	cm, err := autopaho.NewConnection(b.Ctx, autopahoClientConfig)
+	_, err := autopaho.NewConnection(b.Ctx, autopahoClientConfig)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	b.natsMessageHandler(cm)
+	b.handlersOnce.Do(func() {
+		b.natsMessageHandler()
+	})
 }
 
-func (b *Bridge) natsMessageHandler(cm *autopaho.ConnectionManager) {
-	_ = b.Sub(NATS_MQTT_ADAPTER_SUBJECT_PREFIX+"*.info", func(m *nats.Msg) {
+func (b *Bridge) natsMessageHandler() {
+	addSub := func(subject string, handler func(*nats.Msg)) {
+		sub, err := b.Sub(subject, handler)
+		if err != nil {
+			log.Printf("subscribe error on %s: %v", subject, err)
+			return
+		}
+		b.subsMu.Lock()
+		b.subs = append(b.subs, sub)
+		b.subsMu.Unlock()
+	}
+
+	addSub(NATS_MQTT_ADAPTER_SUBJECT_PREFIX+"*.info", func(m *nats.Msg) {
 
 		log.Printf("Received message on info subject")
-		_, _ = cm.Publish(b.Ctx, &paho.Publish{
+		if err := b.publish(b.Ctx, &paho.Publish{
 			QoS:     byte(b.Mqtt.Qos),
 			Topic:   MQTT_TOPIC_PREFIX + "v1/agent/" + getDeviceFromSubject(m.Subject),
 			Payload: m.Data,
 			Properties: &paho.PublishProperties{
 				ResponseTopic: "oktopus/usp/v1/controller/" + getDeviceFromSubject(m.Subject),
 			},
-		})
+		}); err != nil {
+			log.Printf("mqtt publish failed: %v", err)
+		}
 
 	})
 
-	_ = b.Sub(NATS_MQTT_ADAPTER_SUBJECT_PREFIX+"*.api", func(m *nats.Msg) {
+	addSub(NATS_MQTT_ADAPTER_SUBJECT_PREFIX+"*.api", func(m *nats.Msg) {
 
 		log.Printf("Received message on api subject")
-		_, _ = cm.Publish(b.Ctx, &paho.Publish{
+		if err := b.publish(b.Ctx, &paho.Publish{
 			QoS:     byte(b.Mqtt.Qos),
 			Topic:   MQTT_TOPIC_PREFIX + "v1/agent/" + getDeviceFromSubject(m.Subject),
 			Payload: m.Data,
 			Properties: &paho.PublishProperties{
 				ResponseTopic: "oktopus/usp/v1/api/" + getDeviceFromSubject(m.Subject),
 			},
-		})
+		}); err != nil {
+			log.Printf("mqtt publish failed: %v", err)
+		}
 
 	})
 
-	_ = b.Sub(NATS_MQTT_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
+	addSub(NATS_MQTT_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
 
 		log.Printf("Received message on rtt subject")
 		url := strings.Split(b.Mqtt.Url, "://")[1]
@@ -168,6 +200,55 @@ func getDeviceFromSubject(subject string) string {
 	paths := strings.Split(subject, ".")
 	device := paths[len(paths)-2]
 	return device
+}
+
+func (b *Bridge) setActiveConnection(connectionID string, cm *autopaho.ConnectionManager) {
+	b.connMu.Lock()
+	defer b.connMu.Unlock()
+
+	b.connections[connectionID] = cm
+	b.activeConnID = connectionID
+}
+
+func (b *Bridge) currentConnection() *autopaho.ConnectionManager {
+	b.connMu.RLock()
+	defer b.connMu.RUnlock()
+
+	if b.activeConnID != "" {
+		if cm, ok := b.connections[b.activeConnID]; ok {
+			return cm
+		}
+	}
+
+	for _, cm := range b.connections {
+		return cm
+	}
+
+	return nil
+}
+
+func (b *Bridge) clearActiveConnection(connectionID string) {
+	b.connMu.Lock()
+	defer b.connMu.Unlock()
+
+	delete(b.connections, connectionID)
+	if b.activeConnID == connectionID {
+		b.activeConnID = ""
+		for id := range b.connections {
+			b.activeConnID = id
+			break
+		}
+	}
+}
+
+func (b *Bridge) publish(ctx context.Context, msg *paho.Publish) error {
+	cm := b.currentConnection()
+	if cm == nil {
+		return errors.New("no active mqtt connection")
+	}
+
+	_, err := cm.Publish(ctx, msg)
+	return err
 }
 
 func (b *Bridge) mqttMessageHandler(status, controller, apiMsg chan *paho.Publish) {
@@ -201,7 +282,7 @@ func getDeviceFromTopic(topic string) string {
 	return device
 }
 
-func subscribe(ctx context.Context, qos int, c *autopaho.ConnectionManager) {
+func subscribe(ctx context.Context, qos int, c *autopaho.ConnectionManager) error {
 	if _, err := c.Subscribe(ctx, &paho.Subscribe{
 		Subscriptions: []paho.SubscribeOptions{
 			{
@@ -218,15 +299,16 @@ func subscribe(ctx context.Context, qos int, c *autopaho.ConnectionManager) {
 			},
 		},
 	}); err != nil {
-		log.Fatalln(err)
+		return err
 	}
 
 	log.Printf("Subscribed to %s", MQTT_TOPIC_PREFIX+"+/controller/+")
 	log.Printf("Subscribed to %s", MQTT_TOPIC_PREFIX+"+/status/+")
 	log.Printf("Subscribed to %s", MQTT_TOPIC_PREFIX+"+/api/+")
+	return nil
 }
 
-func buildClientConfig(status, controller, apiMsg chan *paho.Publish, id string) *paho.ClientConfig {
+func buildClientConfig(status, controller, apiMsg chan *paho.Publish, id string, onServerDisconnect func()) *paho.ClientConfig {
 	log.Println("Starting new MQTT client")
 	singleHandler := paho.NewSingleHandlerRouter(func(p *paho.Publish) { //nolint:staticcheck
 
@@ -251,6 +333,9 @@ func buildClientConfig(status, controller, apiMsg chan *paho.Publish, id string)
 				log.Printf("Requested disconnect: %s\n , properties reason: %s\n", clientConfig.ClientID, d.Properties.ReasonString)
 			} else {
 				log.Printf("Requested disconnect; %s reason code: %d\n", clientConfig.ClientID, d.ReasonCode)
+			}
+			if onServerDisconnect != nil {
+				onServerDisconnect()
 			}
 		},
 		OnClientError: func(err error) {
@@ -341,5 +426,15 @@ func (b *Bridge) stopPresence(sn string) {
 	}
 	if err := b.presence.Delete(b.Ctx, b.presenceKey(sn)); err != nil {
 		log.Printf("presence: delete failed for %s: %v", sn, err)
+	}
+}
+
+func (b *Bridge) stopAllPresence() {
+	b.presenceMu.Lock()
+	defer b.presenceMu.Unlock()
+
+	for sn, cancel := range b.presenceCancels {
+		cancel()
+		delete(b.presenceCancels, sn)
 	}
 }

@@ -70,6 +70,9 @@ func (h *Hub) run() {
 	for {
 		select {
 		case client := <-h.register:
+			if existing, ok := h.clients[client.eid]; ok && existing != client {
+				close(existing.send)
+			}
 			// register new eid
 			h.clients[client.eid] = client
 			if client.eid != ceid {
@@ -120,8 +123,8 @@ func (h *Hub) run() {
 			}
 
 		case client := <-h.unregister:
-			// verify if eid exists
-			if _, ok := h.clients[client.eid]; ok {
+			// verify if eid exists and still points at the disconnecting client
+			if current, ok := h.clients[client.eid]; ok && current == client {
 				// delete eid from map of connections
 				delete(h.clients, client.eid)
 				// close client messages receiving channel

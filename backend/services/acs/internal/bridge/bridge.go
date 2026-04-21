@@ -17,7 +17,6 @@ import (
 type Bridge struct {
 	pub  func(string, []byte) error
 	sub  func(string, func(*nats.Msg)) error
-	cpes map[string]handler.CPE
 	h    *handler.Handler
 	conf *config.Acs
 }
@@ -36,7 +35,6 @@ func NewBridge(
 	return &Bridge{
 		pub:  pub,
 		sub:  sub,
-		cpes: h.Cpes,
 		h:    h,
 		conf: c,
 	}
@@ -52,48 +50,47 @@ func (b *Bridge) StartBridge() {
 		}
 
 		device := getDeviceFromSubject(msg.Subject)
-		cpe, ok := b.cpes[device]
+		cpe, ok := b.h.GetCPE(device)
 		if !ok {
 			log.Printf("Device %s not found", device)
 			respondMsg(msg.Respond, http.StatusNotFound, "Device not found")
 			return
 		}
-		if cpe.Queue.Size() > 0 {
-			log.Println("Queue size: ", cpe.Queue.Size())
-			log.Println("Queue data: ", cpe.Queue)
+
+		request := handler.Request{
+			Id:       uuid.NewString(),
+			CwmpMsg:  msg.Data,
+			Callback: make(chan []byte, 1),
+			Time:     time.Now(),
+		}
+
+		enqueued, queueSize := cpe.TryEnqueueRequest(request)
+		if !enqueued {
+			serialNumber, currentQueueSize := cpe.SnapshotQueueState()
+			log.Println("Queue size: ", queueSize)
+			log.Printf("Current queue size for %s: %d", serialNumber, currentQueueSize)
 			log.Printf("Device %s is busy", device)
 			respondMsg(msg.Respond, http.StatusConflict, "Device is busy")
 			return
 		}
 
-		deviceAnswer := make(chan []byte)
-		defer close(deviceAnswer)
-
-		cpe.Queue.Enqueue(handler.Request{ //TODO: pass user and password too
-			Id:       uuid.NewString(),
-			CwmpMsg:  msg.Data,
-			Callback: deviceAnswer,
-			Time:     time.Now(),
-		})
-
 		err := b.h.ConnectionRequest(cpe)
 		if err != nil {
 			log.Println("Failed to do connection request", err)
-			cpe.Queue.Dequeue()
+			cpe.CancelQueuedRequest()
 			respondMsg(msg.Respond, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		defer cpe.Queue.Dequeue()
-
 		select {
-		case response := <-deviceAnswer:
+		case response := <-request.Callback:
 			if b.conf.DebugMode {
 				log.Printf("Received response from cpe: %s payload: %s ", cpe.SerialNumber, string(response))
 			}
 			respondMsg(msg.Respond, http.StatusOK, response)
 		case <-time.After(b.conf.DeviceAnswerTimeout):
 			log.Println("Device response timed out")
+			cpe.CancelQueuedRequest()
 			respondMsg(msg.Respond, http.StatusRequestTimeout, "Request timeout")
 		}
 

@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"log"
+	"sync"
 
 	"github.com/OktopUSP/oktopus/webpa/internal/config"
 	"github.com/gorilla/websocket"
@@ -22,6 +23,8 @@ type message struct {
 // Hub maintains the set of active clients and broadcasts messages to the
 // clients.
 type Hub struct {
+	mu sync.RWMutex
+
 	// Registered clients.
 	clients map[string]*Client
 
@@ -74,8 +77,14 @@ func (h *Hub) run() {
 	for {
 		select {
 		case client := <-h.register:
+			h.mu.Lock()
+			if existing, ok := h.clients[client.eid]; ok && existing != client {
+				close(existing.send)
+			}
 			// register new eid
 			h.clients[client.eid] = client
+			controllerClient, controllerConnected := h.clients[conf.ControllerEID]
+			h.mu.Unlock()
 			if client.eid != conf.ControllerEID {
 				log.Printf("New device connected: %s", client.eid)
 				data, _ := json.Marshal(deviceStatus{client.eid, ONLINE})
@@ -86,17 +95,21 @@ func (h *Hub) run() {
 					msgType: websocket.TextMessage,
 				}
 				log.Printf("%++v", msg)
-				if c, ok := h.clients[msg.eid]; ok {
+				if controllerConnected {
 					select {
 					// send message to receiver client
-					case c.send <- msg:
+					case controllerClient.send <- msg:
 						log.Printf("Sent a message %s --> %s", msg.from, msg.eid)
 					default:
 						// in case the msg sending fails, close the client connection
 						// because it means that the client is no longer active
 						log.Printf("Failed to send a msg to %s, disconnecting client...", msg.eid)
-						close(c.send)
-						delete(h.clients, c.eid)
+						h.mu.Lock()
+						if current, ok := h.clients[controllerClient.eid]; ok && current == controllerClient {
+							close(controllerClient.send)
+							delete(h.clients, controllerClient.eid)
+						}
+						h.mu.Unlock()
 					}
 				}
 			} else {
@@ -104,13 +117,16 @@ func (h *Hub) run() {
 			}
 
 		case client := <-h.unregister:
-			// verify if eid exists
-			if _, ok := h.clients[client.eid]; ok {
+			h.mu.Lock()
+			// verify if eid exists and still points at the disconnecting client
+			if current, ok := h.clients[client.eid]; ok && current == client {
 				// delete eid from map of connections
 				delete(h.clients, client.eid)
 				// close client messages receiving channel
 				close(client.send)
 			}
+			controllerClient, controllerConnected := h.clients[conf.ControllerEID]
+			h.mu.Unlock()
 			log.Println("Disconnected client", client.eid)
 			data, _ := json.Marshal(deviceStatus{client.eid, OFFLINE})
 			msg := message{
@@ -119,23 +135,30 @@ func (h *Hub) run() {
 				data:    data,
 				msgType: websocket.TextMessage,
 			}
-			if c, ok := h.clients[msg.eid]; ok {
+			if controllerConnected {
 				select {
 				// send message to receiver client
-				case c.send <- msg:
+				case controllerClient.send <- msg:
 					log.Printf("Sent a message %s --> %s", msg.from, msg.eid)
 				default:
 					// in case the msg sending fails, close the client connection
 					// because it means that the client is no longer active
 					log.Printf("Failed to send a msg to %s, disconnecting client...", msg.eid)
-					close(c.send)
-					delete(h.clients, c.eid)
+					h.mu.Lock()
+					if current, ok := h.clients[controllerClient.eid]; ok && current == controllerClient {
+						close(controllerClient.send)
+						delete(h.clients, controllerClient.eid)
+					}
+					h.mu.Unlock()
 				}
 			}
 		case message := <-h.broadcast:
 			log.Println("send message to", message.eid)
 			// verify if eid exists
-			if c, ok := h.clients[message.eid]; ok {
+			h.mu.RLock()
+			c, ok := h.clients[message.eid]
+			h.mu.RUnlock()
+			if ok {
 				select {
 				// send message to receiver client
 				case c.send <- message:
@@ -144,12 +167,24 @@ func (h *Hub) run() {
 					// in case the message sending fails, close the client connection
 					// because it means that the client is no longer active
 					log.Printf("Failed to send a message to %s, disconnecting client...", message.eid)
-					close(c.send)
-					delete(h.clients, c.eid)
+					h.mu.Lock()
+					if current, ok := h.clients[c.eid]; ok && current == c {
+						close(c.send)
+						delete(h.clients, c.eid)
+					}
+					h.mu.Unlock()
 				}
 			} else {
 				log.Printf("Message receiver not found: %s", message.eid)
 			}
 		}
 	}
+}
+
+func (h *Hub) getClient(eid string) (*Client, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	client, ok := h.clients[eid]
+	return client, ok
 }

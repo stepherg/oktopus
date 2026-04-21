@@ -47,7 +47,8 @@ func (h *Handler) deviceOnline(device, mtp string) {
 
 	tr369Message, err := proto.Marshal(&record)
 	if err != nil {
-		log.Fatalln("Failed to encode tr369 record:", err)
+		log.Printf("Failed to encode tr369 record: %v", err)
+		return
 	}
 
 	err = h.nc.Publish(mtp+"-adapter.usp.v1."+device+".info", tr369Message)
@@ -63,7 +64,7 @@ func (h *Handler) deviceOffline(device, mtp string) {
 
 	err := h.db.UpdateStatus(device, db.Offline, mtpLayer)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("failed to update %s offline status: %v", device, err)
 	}
 }
 

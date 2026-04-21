@@ -15,7 +15,7 @@ import (
 // Starts New Websockets Server
 func StartNewServer(c config.Config, kv jetstream.KeyValue) {
 	// Initialize handlers of websockets events
-	go handler.InitHandlers(c.ControllerEID)
+	handler.InitHandlers(c.ControllerEID)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/ws/agent/{passwd}", func(w http.ResponseWriter, r *http.Request) {

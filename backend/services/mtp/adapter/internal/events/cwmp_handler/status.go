@@ -27,7 +27,7 @@ func (h *Handler) deviceOffline(device string) {
 
 	err := h.db.UpdateStatus(device, db.Offline, db.CWMP)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("failed to update %s offline status: %v", device, err)
 	}
 }
 

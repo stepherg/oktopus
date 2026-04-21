@@ -90,46 +90,42 @@ func (s *Subscription) Unsubscribe(opts ...func(*frame.Frame) error) error {
 		return err
 	}
 
-	// UNSUBSCRIBE is a bit weird in that it is tagged with a "receipt" header
-	// on the I/O goroutine, so the above call to sendFrame() will not wait
-	// for the resulting RECEIPT.
-	//
-	// We don't want to interfere with `s.C` since we might be "stealing"
-	// MESSAGEs or ERRORs from another goroutine, so use a sync.Cond to
-	// wait for the terminal state transition instead.
-	// s.closeMutex.Lock()
-	// for atomic.LoadInt32(&s.state) != subStateClosed {
-	// 	err = waitWithTimeout(s.closeCond, s.unsubscribeReceiptTimeout)
-	// 	if err != nil && errors.Is(err, &ErrUnsubscribeReceiptTimeout) {
-	// 		msg := s.subscriptionErrorMessage("channel unsubscribe receipt timeout")
-	// 		s.C <- msg
-	// 		return err
-	// 	}
-	// }
-	// s.closeMutex.Unlock()
 	s.closeCond.L.Lock()
-	s.closeChannel(nil)
+	err = waitWithTimeout(s.closeCond, s.unsubscribeReceiptTimeout, func() bool {
+		return atomic.LoadInt32(&s.state) == subStateClosed
+	})
 	s.closeCond.L.Unlock()
+	if err != nil {
+		s.closeChannel(s.subscriptionErrorMessage("channel unsubscribe receipt timeout"))
+	}
 
-	return nil
+	return err
 }
 
-func waitWithTimeout(cond *sync.Cond, timeout time.Duration) error {
+func waitWithTimeout(cond *sync.Cond, timeout time.Duration, done func() bool) error {
 	if timeout == 0 {
-		cond.Wait()
+		for !done() {
+			cond.Wait()
+		}
 		return nil
 	}
-	waitChan := make(chan struct{})
-	go func() {
+
+	timedOut := false
+	timer := time.AfterFunc(timeout, func() {
+		cond.L.Lock()
+		timedOut = true
+		cond.Broadcast()
+		cond.L.Unlock()
+	})
+	defer timer.Stop()
+
+	for !done() && !timedOut {
 		cond.Wait()
-		close(waitChan)
-	}()
-	select {
-	case <-waitChan:
-		return nil
-	case <-time.After(timeout):
-		return &ErrUnsubscribeReceiptTimeout
 	}
+	if done() {
+		return nil
+	}
+	return &ErrUnsubscribeReceiptTimeout
 }
 
 // Read a message from the subscription. This is a convenience
@@ -150,10 +146,22 @@ func (s *Subscription) Read() (*Message, error) {
 }
 
 func (s *Subscription) closeChannel(msg *Message) {
-	if msg != nil {
-		s.C <- msg
+	for {
+		state := atomic.LoadInt32(&s.state)
+		if state == subStateClosed {
+			return
+		}
+		if atomic.CompareAndSwapInt32(&s.state, state, subStateClosed) {
+			break
+		}
 	}
-	atomic.StoreInt32(&s.state, subStateClosed)
+
+	if msg != nil {
+		select {
+		case s.C <- msg:
+		default:
+		}
+	}
 	close(s.C)
 	s.closeCond.Broadcast()
 }
@@ -171,14 +179,18 @@ func (s *Subscription) readLoop(ch chan *frame.Frame) {
 		f, ok := <-ch
 		if !ok {
 			state := atomic.LoadInt32(&s.state)
-			if state == subStateActive || state == subStateClosing {
+			switch state {
+			case subStateActive:
 				msg := s.subscriptionErrorMessage("channel read failed")
 				s.closeChannel(msg)
+			case subStateClosing:
+				s.closeChannel(nil)
 			}
 			return
 		}
 
-		if f.Command == frame.MESSAGE {
+		switch f.Command {
+		case frame.MESSAGE:
 			destination := f.Header.Get(frame.Destination)
 			contentType := f.Header.Get(frame.ContentType)
 			msg := &Message{
@@ -190,7 +202,7 @@ func (s *Subscription) readLoop(ch chan *frame.Frame) {
 				Body:         f.Body,
 			}
 			s.C <- msg
-		} else if f.Command == frame.ERROR {
+		case frame.ERROR:
 			state := atomic.LoadInt32(&s.state)
 			if state == subStateActive || state == subStateClosing {
 				message, _ := f.Header.Contains(frame.Message)
@@ -214,13 +226,13 @@ func (s *Subscription) readLoop(ch chan *frame.Frame) {
 				s.closeChannel(msg)
 			}
 			return
-		} else if f.Command == frame.RECEIPT {
+		case frame.RECEIPT:
 			state := atomic.LoadInt32(&s.state)
 			if state == subStateActive || state == subStateClosing {
 				s.closeChannel(nil)
 			}
 			return
-		} else {
+		default:
 			s.conn.log.Infof("Subscription %s: %s: unsupported frame type: %+v", s.id, s.destination, f)
 		}
 	}

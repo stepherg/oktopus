@@ -396,13 +396,11 @@ func processLoop(c *Conn, writer *frame.Writer) {
 					}
 					sendFrame = false
 				} else {
-					// id, _ := req.Frame.Header.Contains(frame.Id)
-					// is this trying to be too clever -- add a receipt
-					// header so that when the server responds with a
-					// RECEIPT frame, the corresponding channel will be closed
-					// req.Frame.Header.Set(frame.Receipt, id)
-
-					// don't wait for a receipt frame from the server, just send the unsubscribe frame and go on
+					id, _ := req.Frame.Header.Contains(frame.Id)
+					if ch, ok := channels[id]; ok {
+						delete(channels, id)
+						close(ch)
+					}
 				}
 			}
 

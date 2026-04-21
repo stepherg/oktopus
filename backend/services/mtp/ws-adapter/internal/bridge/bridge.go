@@ -81,7 +81,12 @@ func (b *Bridge) StartBridge(port string, tls bool) {
 
 	go func(port string, tls bool) {
 		for {
-			url := b.urlBuild(tls, port)
+			url, err := b.urlBuild(tls, port)
+			if err != nil {
+				log.Printf("failed to build websocket URL: %v", err)
+				time.Sleep(WS_CONNECTION_RETRY)
+				continue
+			}
 			dialer := b.newDialer()
 			wc, _, err := dialer.Dial(url, nil)
 			if err != nil {
@@ -350,7 +355,7 @@ func (b *Bridge) stopAllPresence() {
 	}
 }
 
-func (b *Bridge) urlBuild(tls bool, port string) string {
+func (b *Bridge) urlBuild(tls bool, port string) (string, error) {
 	prefix := "ws://"
 	if tls {
 		prefix = "wss://"
@@ -358,13 +363,15 @@ func (b *Bridge) urlBuild(tls bool, port string) string {
 
 	wsUrl := prefix + b.Ws.Addr + port + b.Ws.Route
 
-	token, _ := b.kv.Get(b.Ctx, "oktopusController")
-
 	if b.Ws.AuthEnable {
+		token, err := b.kv.Get(b.Ctx, "oktopusController")
+		if err != nil {
+			return "", err
+		}
 		wsUrl = wsUrl + "?token=" + string(token.Value())
 	}
 
-	return wsUrl
+	return wsUrl, nil
 }
 
 func (b *Bridge) newDialer() websocket.Dialer {

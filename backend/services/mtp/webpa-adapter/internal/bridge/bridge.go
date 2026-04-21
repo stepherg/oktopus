@@ -46,7 +46,7 @@ type deviceStatus struct {
 
 type (
 	Publisher  func(string, []byte) error
-	Subscriber func(string, func(*nats.Msg)) error
+	Subscriber func(string, func(*nats.Msg)) (*nats.Subscription, error)
 )
 
 type Bridge struct {
@@ -57,6 +57,8 @@ type Bridge struct {
 	NewDevQMutex   *sync.Mutex
 	kv             jetstream.KeyValue
 	Ctx            context.Context
+	subs           []*nats.Subscription
+	subsMu         sync.Mutex
 }
 
 func NewBridge(p Publisher, s Subscriber, ctx context.Context, w config.Ws, kv jetstream.KeyValue) *Bridge {
@@ -73,7 +75,12 @@ func (b *Bridge) StartBridge(port string, tls bool) {
 
 	go func(port string, tls bool) {
 		for {
-			url := b.urlBuild(tls, port)
+			url, err := b.urlBuild(tls, port)
+			if err != nil {
+				log.Printf("failed to build webpa URL: %v", err)
+				time.Sleep(WEBPA_CONNECTION_RETRY)
+				continue
+			}
 			header := http.Header{}
 			header.Set("Origin", "webpa-adapter")
 			dialer := b.newDialer()
@@ -85,17 +92,15 @@ func (b *Bridge) StartBridge(port string, tls bool) {
 			}
 			log.Println("Connected to Webpa endpoint--> ", url)
 			go b.subscribe(wc)
+			done := make(chan struct{})
 			go func(wc *websocket.Conn) {
+				defer close(done)
 				for {
 					msgType, wsMsg, err := wc.ReadMessage()
 					if err != nil {
-						if websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-							log.Printf("websocket error: %v", err)
-							b.StartBridge(port, tls)
-							return
-						}
-						log.Println("websocket unexpected error:", err)
-						return
+						log.Printf("websocket read error (will reconnect): %v", err)
+						_ = wc.Close()
+						break
 					}
 					if msgType == websocket.TextMessage {
 						b.statusMsgHandler(wsMsg)
@@ -130,17 +135,35 @@ func (b *Bridge) StartBridge(port string, tls bool) {
 
 				}
 			}(wc)
-			break
+			<-done
+			time.Sleep(WEBPA_CONNECTION_RETRY)
 		}
 	}(port, tls)
 }
 
 func (b *Bridge) subscribe(wc *websocket.Conn) {
+	b.subsMu.Lock()
+	for _, s := range b.subs {
+		s.Drain() //nolint:errcheck
+	}
+	b.subs = nil
+	b.subsMu.Unlock()
+
+	addSub := func(subject string, handler func(*nats.Msg)) {
+		sub, err := b.Sub(subject, handler)
+		if err != nil {
+			log.Printf("subscribe error on %s: %v", subject, err)
+			return
+		}
+		b.subsMu.Lock()
+		b.subs = append(b.subs, sub)
+		b.subsMu.Unlock()
+	}
 
 	b.NewDeviceQueue = make(map[string]string)
 	b.NewDevQMutex = &sync.Mutex{}
 
-	_ = b.Sub(NATS_WEBPA_ADAPTER_SUBJECT_PREFIX+"*.info", func(msg *nats.Msg) {
+	addSub(NATS_WEBPA_ADAPTER_SUBJECT_PREFIX+"*.info", func(msg *nats.Msg) {
 
 		log.Printf("Received message on info subject")
 
@@ -158,7 +181,7 @@ func (b *Bridge) subscribe(wc *websocket.Conn) {
 		}
 	})
 
-	_ = b.Sub(NATS_WEBPA_ADAPTER_SUBJECT_PREFIX+"*.api", func(msg *nats.Msg) {
+	addSub(NATS_WEBPA_ADAPTER_SUBJECT_PREFIX+"*.api", func(msg *nats.Msg) {
 
 		log.Printf("Received message on api subject")
 
@@ -169,7 +192,7 @@ func (b *Bridge) subscribe(wc *websocket.Conn) {
 		}
 	})
 
-	_ = b.Sub(NATS_WEBPA_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
+	addSub(NATS_WEBPA_ADAPTER_SUBJECT_PREFIX+"rtt", func(msg *nats.Msg) {
 
 		log.Printf("Received message on rtt subject")
 
@@ -226,7 +249,7 @@ func (b *Bridge) statusMsgHandler(wsMsg []byte) {
 	_ = b.Pub(NATS_WEBPA_SUBJECT_PREFIX+deviceStatus.Eid+".status", []byte(deviceStatus.Status))
 }
 
-func (b *Bridge) urlBuild(tls bool, port string) string {
+func (b *Bridge) urlBuild(tls bool, port string) (string, error) {
 	prefix := "ws://"
 	if tls {
 		prefix = "wss://"
@@ -234,13 +257,15 @@ func (b *Bridge) urlBuild(tls bool, port string) string {
 
 	wsUrl := prefix + b.Ws.Addr + port + b.Ws.Route
 
-	token, _ := b.kv.Get(b.Ctx, "oktopusController")
-
 	if b.Ws.AuthEnable {
+		token, err := b.kv.Get(b.Ctx, "oktopusController")
+		if err != nil {
+			return "", err
+		}
 		wsUrl = wsUrl + "?token=" + string(token.Value())
 	}
 
-	return wsUrl
+	return wsUrl, nil
 }
 
 func (b *Bridge) newDialer() websocket.Dialer {

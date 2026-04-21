@@ -7,18 +7,27 @@ import (
 
 func (h *Handler) HandleCpeStatus() {
 	for {
-		for cpe := range h.Cpes {
-			if cpe == "" {
+		for _, cpe := range h.SnapshotCPEs() {
+			if cpe == nil {
+				continue
+			}
+
+			cpe.mu.Lock()
+			serialNumber := cpe.SerialNumber
+			lastConnection := cpe.LastConnection
+			cpe.mu.Unlock()
+
+			if serialNumber == "" {
 				continue
 			}
 			if h.acsConfig.DebugMode {
-				log.Println("Checking CPE " + cpe + " status")
+				log.Println("Checking CPE " + serialNumber + " status")
 			}
-			if time.Since(h.Cpes[cpe].LastConnection) > h.acsConfig.KeepAliveInterval {
-				log.Printf("LastConnection: %s, KeepAliveInterval: %s", h.Cpes[cpe].LastConnection, h.acsConfig.KeepAliveInterval)
-				log.Println("CPE", cpe, "is offline")
-				h.pub("cwmp.v1."+cpe+".status", []byte("0")) //nolint:errcheck
-				delete(h.Cpes, cpe)
+			if time.Since(lastConnection) > h.acsConfig.KeepAliveInterval {
+				log.Printf("LastConnection: %s, KeepAliveInterval: %s", lastConnection, h.acsConfig.KeepAliveInterval)
+				log.Println("CPE", serialNumber, "is offline")
+				h.pub("cwmp.v1."+serialNumber+".status", []byte("0")) //nolint:errcheck
+				h.DeleteCPE(serialNumber)
 				break
 			}
 		}
